@@ -8,10 +8,10 @@ from models.tf_dynamics_models.constructor import format_samples_for_training
 
 
 def update_stats_dict(stats_dict, data):
-    stats_dict["max"].append(np.max(data[key]))
-    stats_dict["mean"].append(np.mean(data[key]))
-    stats_dict["min"].append(np.min(data[key]))
-    stats_dict["std"].append(np.std(data[key]))
+    stats_dict["max"].append(np.max(data))
+    stats_dict["mean"].append(np.mean(data))
+    stats_dict["min"].append(np.min(data))
+    stats_dict["std"].append(np.std(data))
 
 class MOPO():
     def __init__(
@@ -219,7 +219,7 @@ class TATU_model_based():
         
         print("Reward Stats:\n", reward_stats)
         print("Penalty Stats:\n", penalty_stats)
-        print("Error Stats:\n", error_stats)
+        # print("Error Stats:\n", error_stats)
         print("Halt Info:\n", halt_info)
         del reward_stats, penalty_stats, error_stats
         

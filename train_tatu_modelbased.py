@@ -38,6 +38,7 @@ def get_args():
     parser.add_argument("--n-ensembles", type=int, default=7)
     parser.add_argument("--n-elites", type=int, default=5)
     parser.add_argument("--dynamics-model-dir", type=str, default=None)
+    parser.add_argument("--dynamics-name", type=str, default=None)
     # offline mbrl training arguments
     parser.add_argument("--reward-penalty-coef", type=float, default=1.0)
     parser.add_argument("--rollout-length", type=int, default=15)
@@ -60,9 +61,9 @@ def get_args():
     parser.add_argument("--critic_num", type=int, default=2)
 
     # SDE arguments
-    parser.add_argument("--use_diffusion", default=True, action='store_true', help="To penalize uncertainty")
+    parser.add_argument("--use_diffusion", default=False, action='store_true', help="To penalize uncertainty")
     parser.add_argument("--sde_model_id", type=int, default=0)
-    parser.add_argument("--sde_num_particles", type=int, default=20)
+    parser.add_argument("--sde_num_particles", type=int, default=5)
     parser.add_argument("--use_gpu", type=bool, default=True)
     parser.add_argument("--jax_gpu_mem_frac", type=str, default='0.2')
     parser.add_argument("--dt", type=float, default=0.05)
@@ -70,12 +71,11 @@ def get_args():
     args= parser.parse_args()
 
     sde_model_list = {
-        'hopper-random-v2':["~/sde4mbrl/sde4mbrlExamples/d4rl_mujoco/my_models/"+\
-            "hopper_random_v2_nn64_hr5_l2type11_nprior5_lr1e-4_siTrue_sde.pkl"],
-        'hopper-medium-expert-v2': ["~/sde4mbrl/sde4mbrlExamples/d4rl_mujoco/my_models/"+\
-            "hopper_medium_expert_v2_nn64_hr10_l2type1_nprior5_lr1e-4_sde.pkl"],
-        'halfcheetah-random-v2': ["~/sde4mbrl/sde4mbrlExamples/d4rl_mujoco/my_models/"+\
-                                  "halfcheetah_random_v2_nn64_hr10_l2type7_lr1e-4_siFalse_sde.pkl"]
+        # 'hopper-random-v2':["~/sde4mbrl/sde4mbrlExamples/d4rl_mujoco/my_models/"+\
+        #     "hopper_random_v2_nn64_hr5_l2type11_nprior5_lr1e-4_siTrue_sde.pkl"],
+        # 'hopper-medium-expert-v2': ["~/sde4mbrl/sde4mbrlExamples/d4rl_mujoco/my_models/"+\
+        #     "hopper_medium_expert_v2_nn64_hr10_l2type1_nprior5_lr1e-4_sde.pkl"],
+        'halfcheetah-random-v2': ["hc_rand_v2_dsc0.1_simple3_hr-2_dt-0.05_sde.pkl", "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl"]
     }
     args.sde_model_path = sde_model_list[args.task][args.sde_model_id]
 
@@ -155,7 +155,8 @@ def train(args=get_args()):
             num_elites=args.n_elites,
             model_type="mlp",
             separate_mean_var=True,
-            load_dir=args.dynamics_model_dir
+            load_dir=args.dynamics_model_dir,
+            name=args.dynamics_name,
         )
     else:
         dynamics_model = {

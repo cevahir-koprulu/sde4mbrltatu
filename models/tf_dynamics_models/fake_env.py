@@ -72,6 +72,7 @@ class FakeEnv:
 
         rewards, next_obs = samples[:,:1], samples[:,1:]
         terminals = self.config.termination_fn(obs, act, next_obs)
+        rewards = np.expand_dims(self.config.single_step_reward(obs, act, next_obs), 1)
 
         batch_size = model_means.shape[0]
         return_means = np.concatenate((model_means[:,:1], terminals, model_means[:,1:]), axis=-1)
@@ -341,13 +342,13 @@ class FakeEnv_SDE_Trunc:
         """ Load the SDE and all the required terms
         """
         if self.env_name == "hopper":
-            from sde4mbrlExamples.d4rl_mujoco.hopper_sde_v2 import load_predictor_function, load_learned_diffusion 
+            from models.sde_models.hopper_sde import load_predictor_function, load_learned_diffusion
         elif self.env_name == "halfcheetah":
-            from sde4mbrlExamples.d4rl_mujoco.halfcheetah_sde import load_predictor_function, load_learned_diffusion
-        elif self.env_name == "walker2d":
-            from sde4mbrlExamples.d4rl_mujoco.walker2d_sde import load_predictor_function, load_learned_diffusion
-        elif self.env_name == "ant":
-            from sde4mbrlExamples.d4rl_mujoco.ant_sde import load_predictor_function, load_learned_diffusion
+            from models.sde_models.halfcheetah_sde import load_predictor_function, load_learned_diffusion
+        # elif self.env_name == "walker2d":
+        #     from sde4mbrlExamples.d4rl_mujoco.walker2d_sde import load_predictor_function, load_learned_diffusion
+        # elif self.env_name == "ant":
+        #     from sde4mbrlExamples.d4rl_mujoco.ant_sde import load_predictor_function, load_learned_diffusion
         else:
             raise NotImplementedError("env_name {} not implemented".format(self.env_name))
         import jax
@@ -360,7 +361,8 @@ class FakeEnv_SDE_Trunc:
         init_seed = self.model['seed']
         rollout_batch_size = self.model['rollout_batch_size']
         if use_gpu:
-            os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = str(jax_gpu_mem_frac)
+            # This doesn't work as Jax has been already imported and initialized
+            # os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = str(jax_gpu_mem_frac)
             backend = 'gpu'
         else:
             backend = 'cpu'
@@ -377,7 +379,6 @@ class FakeEnv_SDE_Trunc:
                                             }, 
                                         return_control=False, 
                                         return_time_steps=False)
-        my_sde_diffusion = load_learned_diffusion(model_path)
 
         # Define the prediction function
         def _my_pred_fn(x, u, _rng):
@@ -410,15 +411,16 @@ class FakeEnv_SDE_Trunc:
         self.predict = augmented_pred_fn
 
         if self.use_diffusion:
+            my_sde_diffusion = load_learned_diffusion(model_path)
             # Define the diffusion function
             def _my_diff_fn(x, u, _rng):
                 """ Return the predicted next state
                 """
                 assert len(x.shape) == len(u.shape) == 2
-                next_rng, _rng = jax.random.split(_rng, 2)
-                _rng = jax.random.split(_rng, x.shape[0])
-                diff = jax.vmap(my_sde_diffusion, in_axes=(0, 0, 0))(x, u, _rng)
-                return diff, next_rng
+                # next_rng, _rng = jax.random.split(_rng, 2)
+                # _rng = jax.random.split(_rng, x.shape[0])
+                diff = jax.vmap(my_sde_diffusion)(x, u)
+                return diff, _rng
             self._diffusion = jax.jit(_my_diff_fn, backend=backend)
             def augmented_diff_fn(x, u , rng):
                 batch_x = x.shape[0]
@@ -484,7 +486,7 @@ class FakeEnv_SDE_Trunc:
         log_prob, dev = self._get_logprob(chosen_particles, predicted_particles, None)
 
         next_obs = chosen_particles
-        rewards = np.expand_dims(rewards, self.config.single_step_reward(obs, act, next_obs), 1)
+        rewards = np.expand_dims(self.config.single_step_reward(obs, act, next_obs), 1)
         if len(rewards.shape) > 2 :
             rewards_mean = np.mean(rewards, axis=0)
             rewards_std = np.std(rewards, axis=0)
