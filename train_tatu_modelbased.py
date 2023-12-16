@@ -19,6 +19,7 @@ from buffer import ReplayBuffer
 from logger import Logger
 from trainer import Trainer_modelbsed
 
+os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = "0.25"
 
 def get_args():
     parser = argparse.ArgumentParser()
