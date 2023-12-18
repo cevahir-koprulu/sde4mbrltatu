@@ -15,6 +15,7 @@ class StaticFns:
 
         done = ~not_done
         done = done[:,None]
+        # print(done.shape)
         return done
     
     @staticmethod
@@ -23,6 +24,7 @@ class StaticFns:
         alive_bonus = 1.0
         # reward = obs[...,5]
         reward = (obs[...,5] + next_obs[...,5])/2.0 # When the agent is alive, reward is its x-velocity
-        reward += alive_bonus*StaticFns.termination_fn(obs, act, next_obs)
+        # print('Reward shape', reward.shape)
+        reward += alive_bonus # * StaticFns.termination_fn(obs, act, next_obs).ravel()
         reward -= 1e-3 * np.square(act).sum(axis=-1)
         return reward

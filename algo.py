@@ -113,6 +113,8 @@ class TATU_model_based():
         is_sde = False,
         use_diffusion=True,
         env_name="",
+        prob_init_obs = 0,
+        max_steps_per_env = 1000,
     ):
 
         self.policy = policy
@@ -144,6 +146,8 @@ class TATU_model_based():
         self._real_ratio = real_ratio
         self._max_disc = None
         self._pessimism_coef = pessimism_coef
+        self.prob_init_obs = prob_init_obs
+        self.max_steps_per_env = max_steps_per_env
 
 
     def compute_max_disc(self):
@@ -175,7 +179,20 @@ class TATU_model_based():
         return self.offline_buffer.sample(self._rollout_batch_size)
 
     def rollout_transitions(self):
-        init_transitions = self._sample_initial_transitions()
+        # Now should we start from the initial observation and rollout the trajectory till the end
+        _rollout_length = self._rollout_length
+        if self.prob_init_obs > 0:
+            arr_to_pick = [self._rollout_length, self.max_steps_per_env]
+            _rollout_length = np.random.choice(arr_to_pick, p=[1-self.prob_init_obs, self.prob_init_obs])
+            print("####### Rolling out for {} steps #######".format(_rollout_length) )
+        
+        if _rollout_length == self.max_steps_per_env:
+            init_transitions = self.offline_buffer.sample_initial_observations(self._rollout_batch_size)
+            observations = init_transitions
+        else:
+            init_transitions = self._sample_initial_transitions()
+            observations = init_transitions["observations"]
+
         if self._max_disc == None:
             self._max_disc = self.compute_max_disc()
             print('---> max_disc :  ', self._max_disc)
@@ -184,7 +201,6 @@ class TATU_model_based():
         # print('max_disc',self._max_disc)
         # print('threshold',threshold)
         # rollout
-        observations = init_transitions["observations"]
         cumul_error = np.zeros(len(observations))
         halt_info ={"max_disc":self._max_disc,
                     "threshold":threshold,
@@ -196,8 +212,8 @@ class TATU_model_based():
         penalty_stats = defaultdict(list)
         error_stats = defaultdict(list)
 
-        for _ in range(self._rollout_length):
-
+        # for _ in range(self._rollout_length):
+        for _nrolls in range(_rollout_length):
             actions = self.policy.sample_action(observations)
             prev_error = np.copy(cumul_error)
             next_observations, rewards, terminals, next_cumul_error, infos = self.fake_env.step(observations, actions, cumul_error, threshold)
@@ -209,6 +225,7 @@ class TATU_model_based():
         
             nonterm_mask = (~terminals).flatten()
             if nonterm_mask.sum() == 0:
+                print("####### Halted at {} steps #######".format(_nrolls))
                 break
             cumul_error = next_cumul_error[nonterm_mask]
             observations = next_observations[nonterm_mask]
