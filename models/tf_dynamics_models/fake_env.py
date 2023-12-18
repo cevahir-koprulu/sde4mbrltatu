@@ -480,6 +480,7 @@ class FakeEnv_SDE_Trunc:
         else:
             ### Choose the mean of predicted particles
             chosen_particles = np.mean(predicted_particles, axis=0)
+        # print("chosen_particles", chosen_particles )
         model_means = np.mean(predicted_particles, axis=0)
         model_stds = np.std(predicted_particles, axis=0)
 

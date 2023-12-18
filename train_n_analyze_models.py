@@ -28,6 +28,9 @@ def train_model(cfg_name):
     if 'halfcheetah' in cfg_name:
         from models.sde_models.halfcheetah_sde import train_sde
         train_sde(cfg_name)
+    elif 'hopper' in cfg_name:
+        from models.sde_models.hopper_sde import train_sde
+        train_sde(cfg_name)
 
 
 def analyze_model(dataset, model_names, hr, num_extra_steps, num_sample, num_traj_show, use_train=False, seed=10):
@@ -54,18 +57,20 @@ def analyze_model(dataset, model_names, hr, num_extra_steps, num_sample, num_tra
 
     # Pick randomly a trajectory
     np.random.seed(seed)
-    traj_idx = np.random.choice(len(data), replace=False)
-    curr_traj_y = np.concatenate((data[traj_idx]['y'], data[traj_idx]['y'][-1:]), axis=0)
-    curr_traj_u = data[traj_idx]['u'][:curr_traj_y.shape[0]]
-
-    # curr_traj_gear = curr_extra_args[0]
-    traj_time_evol = data[traj_idx]['y'][:,-1]
 
     # Ready to create
     if 'halfcheetah' in dataset:
         from models.sde_models.halfcheetah_sde import load_predictor_function, OBS_NAMES, CONTROL_NAMES, TIMESTEP_ENV
+    elif 'hopper' in dataset:
+        from models.sde_models.hopper_sde import load_predictor_function, OBS_NAMES, CONTROL_NAMES, TIMESTEP_ENV
     else:
         raise ValueError("The dataset {} is not supported".format(dataset))
+
+    valid_idx_traj = [ _i for _i, _len in enumerate(lentraj) if _len >= num_extra_steps*hr]
+    traj_idx = np.random.choice(len(valid_idx_traj), replace=False)
+    traj_idx = valid_idx_traj[traj_idx]
+    curr_traj_y = np.concatenate((data[traj_idx]['y'], data[traj_idx]['y'][-1:]), axis=0)
+    curr_traj_u = data[traj_idx]['u'][:curr_traj_y.shape[0]]
 
     # Time evolution of the trajectory
     traj_time_evol = np.array([TIMESTEP_ENV * i for i in range(curr_traj_y.shape[0])])

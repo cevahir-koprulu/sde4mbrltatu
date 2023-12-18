@@ -36,7 +36,7 @@ class ReplayBuffer:
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
     
-    def load_dataset(self, dataset):
+    def load_dataset(self, dataset, init_obs_dataset):
         observations = np.array(dataset["observations"], dtype=self.obs_dtype)
         next_observations = np.array(dataset["next_observations"], dtype=self.obs_dtype)
         actions = np.array(dataset["actions"], dtype=self.action_dtype)
@@ -51,6 +51,9 @@ class ReplayBuffer:
 
         self.ptr = len(observations)
         self.size = len(observations)
+
+        if init_obs_dataset is not None:
+            self.observations_init = np.array(init_obs_dataset)
 
     def add_batch(self, obs, next_obs, actions, rewards, terminals):
         batch_size = len(obs)
@@ -86,6 +89,10 @@ class ReplayBuffer:
 
             self.ptr = end
             self.size = min(self.size + batch_size, self.max_size)
+    
+    def sample_initial_observations(self, batch_size):
+        batch_indices = np.random.randint(0, len(self.observations_init), size=batch_size)
+        return self.observations_init[batch_indices].copy()
 
     def sample(self, batch_size):
 

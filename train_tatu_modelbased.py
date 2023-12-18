@@ -19,7 +19,8 @@ from buffer import ReplayBuffer
 from logger import Logger
 from trainer import Trainer_modelbsed
 
-os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = "0.25"
+from models.sde_models.utils_for_d4rl_mujoco import get_formatted_dataset_for_nsde_training
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -68,12 +69,12 @@ def get_args():
     parser.add_argument("--use_gpu", type=bool, default=True)
     parser.add_argument("--jax_gpu_mem_frac", type=str, default='0.2')
     parser.add_argument("--dt", type=float, default=0.05)
+    parser.add_argument("--prob_init_obs", type=float, default=0)
 
     args= parser.parse_args()
 
     sde_model_list = {
-        # 'hopper-random-v2':["~/sde4mbrl/sde4mbrlExamples/d4rl_mujoco/my_models/"+\
-        #     "hopper_random_v2_nn64_hr5_l2type11_nprior5_lr1e-4_siTrue_sde.pkl"],
+        'hopper-random-v2':["hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl", "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"],
         # 'hopper-medium-expert-v2': ["~/sde4mbrl/sde4mbrlExamples/d4rl_mujoco/my_models/"+\
         #     "hopper_medium_expert_v2_nn64_hr10_l2type1_nprior5_lr1e-4_sde.pkl"],
         'halfcheetah-random-v2': ["hc_rand_v2_dsc0.1_simple3_hr-2_dt-0.05_sde.pkl", "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl"]
@@ -82,6 +83,15 @@ def get_args():
 
     return args
 
+def static_get_max_steps_per_env(task_name):
+    if "hopper" in task_name:
+        return 1000
+    elif "halfcheetah" in task_name:
+        return 1000
+    elif "walker" in task_name:
+        return 1000
+    else:
+        raise NotImplementedError
 
 def train(args=get_args()):
     # create env and dataset
@@ -89,6 +99,10 @@ def train(args=get_args()):
     dataset = d4rl.qlearning_dataset(env)
     args.obs_shape = env.observation_space.shape
     args.action_dim = np.prod(env.action_space.shape)
+
+    # Load the initial states in the dataset for later use to full traj simulation
+    full_data_set = get_formatted_dataset_for_nsde_training(args.task)
+    observ_init_dataset = np.array([_data['y'][0,:] for _data in full_data_set])
 
     # seed
     random.seed(args.seed)
@@ -178,9 +192,10 @@ def train(args=get_args()):
         action_dim=args.action_dim,
         action_dtype=np.float32
     )
-    offline_buffer.load_dataset(dataset)
+    offline_buffer.load_dataset(dataset, observ_init_dataset)
+    est_rollout_length = int (args.rollout_length * (1 - args.prob_init_obs) + args.prob_init_obs * static_get_max_steps_per_env(args.task))
     model_buffer = ReplayBuffer(
-        buffer_size=10*args.rollout_batch_size*args.rollout_length*args.model_retain_epochs,
+        buffer_size=10*args.rollout_batch_size* est_rollout_length * args.model_retain_epochs,
         obs_shape=args.obs_shape,
         obs_dtype=np.float32,
         action_dim=args.action_dim,
@@ -204,7 +219,7 @@ def train(args=get_args()):
         tau=args.tau,
         gamma=args.gamma,
         alpha=args.alpha,
-        device=args.device
+        device=args.device,
     )
         algo = TATU_model_based(
             sac_policy,
@@ -221,6 +236,8 @@ def train(args=get_args()):
             is_sde = 'sde' in args.algo_name,
             use_diffusion = 'sde' in args.algo_name and args.use_diffusion,
             env_name=task,
+            prob_init_obs = args.prob_init_obs,
+            max_steps_per_env = static_get_max_steps_per_env(args.task)
     )
     elif args.algo_name == "tatu_combo" or 'sde' in args.algo_name:
         cql_policy = CQLPolicy(
@@ -253,6 +270,8 @@ def train(args=get_args()):
             is_sde = 'sde' in args.algo_name,
             use_diffusion = 'sde' in args.algo_name and args.use_diffusion,
             env_name=task,
+            prob_init_obs = args.prob_init_obs,
+            max_steps_per_env = static_get_max_steps_per_env(args.task)
     )
     else:
         raise Exception("Invalid algo name")
