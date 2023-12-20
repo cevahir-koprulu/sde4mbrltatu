@@ -21,6 +21,10 @@ from trainer import Trainer_modelbsed
 
 from models.sde_models.utils_for_d4rl_mujoco import get_formatted_dataset_for_nsde_training
 
+DT_FOR_SDE = {
+    'hopper': 0.008,
+    'halfcheetah': 0.05,
+}
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -67,11 +71,12 @@ def get_args():
     parser.add_argument("--sde_model_id", type=int, default=0)
     parser.add_argument("--sde_num_particles", type=int, default=5)
     parser.add_argument("--use_gpu", type=bool, default=True)
-    parser.add_argument("--jax_gpu_mem_frac", type=str, default='0.2')
-    parser.add_argument("--dt", type=float, default=0.05)
+    parser.add_argument("--jax_gpu_mem_frac", type=str, default='0.25')
     parser.add_argument("--prob_init_obs", type=float, default=0)
 
     args= parser.parse_args()
+
+    os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = str(args.jax_gpu_mem_frac)
 
     sde_model_list = {
         'hopper-random-v2':["hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl", "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"],
@@ -179,7 +184,7 @@ def train(args=get_args()):
             'use_gpu': args.use_gpu,
             'num_particles': args.sde_num_particles,
             'jax_gpu_mem_frac': args.jax_gpu_mem_frac,
-            'dt': args.dt,
+            'dt': DT_FOR_SDE[args.task.split('-')[0]],
             'seed' : args.seed,
             'rollout_batch_size': args.rollout_batch_size,
         }
