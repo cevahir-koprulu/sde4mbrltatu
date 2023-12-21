@@ -8,16 +8,21 @@ import gym
 import d4rl
 
 import numpy as np
+
 import torch
 from torch.utils.tensorboard import SummaryWriter
 import tensorflow.compat.v1 as tf
+
 from models.tf_dynamics_models.constructor import construct_model
 from models.policy_models import MLP, ActorProb, Critic, DiagGaussian
+
 from policys.policy import SACPolicy,CQLPolicy
+
 from algo import TATU_model_based
 from buffer import ReplayBuffer
-from logger import Logger
 from trainer import Trainer_modelbsed
+
+from logger import Logger
 
 from models.sde_models.utils_for_d4rl_mujoco import get_formatted_dataset_for_nsde_training
 
@@ -36,12 +41,13 @@ def get_args():
     parser.add_argument('--target-entropy', type=int, default=-3)
     parser.add_argument('--alpha-lr', type=float, default=3e-4)
 
-    # ensemble arguments
+    # Ensemble arguments
     parser.add_argument("--n-ensembles", type=int, default=7)
     parser.add_argument("--n-elites", type=int, default=5)
     parser.add_argument("--dynamics-model-dir", type=str, default=None)
     parser.add_argument("--dynamics-name", type=str, default=None)
-    # offline mbrl training arguments
+
+    # Offline MBRL training arguments
     parser.add_argument("--reward-penalty-coef", type=float, default=1.0)
     parser.add_argument("--rollout-length", type=int, default=15)
     parser.add_argument("--rollout-batch-size", type=int, default=5000)
@@ -68,32 +74,30 @@ def get_args():
     parser.add_argument("--sde_num_particles", type=int, default=5)
     parser.add_argument("--use_gpu", type=bool, default=True)
     parser.add_argument("--jax_gpu_mem_frac", type=str, default='0.2')
-    parser.add_argument("--dt", type=float, default=0.05)
     parser.add_argument("--prob_init_obs", type=float, default=0)
 
     args= parser.parse_args()
 
     sde_model_list = {
         'hopper-random-v2':["hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl", "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"],
-        # 'hopper-medium-expert-v2': ["~/sde4mbrl/sde4mbrlExamples/d4rl_mujoco/my_models/"+\
-        #     "hopper_medium_expert_v2_nn64_hr10_l2type1_nprior5_lr1e-4_sde.pkl"],
-        'halfcheetah-random-v2': ["hc_rand_v2_dsc0.1_simple3_hr-2_dt-0.05_sde.pkl", "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl"]
+        'halfcheetah-random-v2': ["random_hc_hr-5_dt-0.010_e40_sde.pkl", "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl", "hc_rand_v2_dsc0.1_simple6_hr-1_dt-0.05_sde.pkl"]
     }
     args.sde_model_path = sde_model_list[args.task][args.sde_model_id]
 
     return args
 
-def static_get_max_steps_per_env(task_name):
+def static_get_environment_info(task_name):
     if "hopper" in task_name:
-        return 1000
+        return {'ep_len' : 1000, 'dt' : 0.008}
     elif "halfcheetah" in task_name:
-        return 1000
+        return {'ep_len' : 1000, 'dt' : 0.05}
     elif "walker" in task_name:
-        return 1000
+        return {'ep_len' : 1000, 'dt' : 0.01}
     else:
         raise NotImplementedError
 
 def train(args=get_args()):
+
     # create env and dataset
     env = gym.make(args.task)
     dataset = d4rl.qlearning_dataset(env)
@@ -103,6 +107,9 @@ def train(args=get_args()):
     # Load the initial states in the dataset for later use to full traj simulation
     full_data_set = get_formatted_dataset_for_nsde_training(args.task)
     observ_init_dataset = np.array([_data['y'][0,:] for _data in full_data_set])
+
+    # get environment info
+    env_info = static_get_environment_info(args.task)
 
     # seed
     random.seed(args.seed)
@@ -179,7 +186,7 @@ def train(args=get_args()):
             'use_gpu': args.use_gpu,
             'num_particles': args.sde_num_particles,
             'jax_gpu_mem_frac': args.jax_gpu_mem_frac,
-            'dt': args.dt,
+            'dt': env_info['dt'],
             'seed' : args.seed,
             'rollout_batch_size': args.rollout_batch_size,
         }
@@ -193,7 +200,7 @@ def train(args=get_args()):
         action_dtype=np.float32
     )
     offline_buffer.load_dataset(dataset, observ_init_dataset)
-    est_rollout_length = int (args.rollout_length * (1 - args.prob_init_obs) + args.prob_init_obs * static_get_max_steps_per_env(args.task))
+    est_rollout_length = int (args.rollout_length * (1 - args.prob_init_obs) + args.prob_init_obs * env_info['ep_len'])
     model_buffer = ReplayBuffer(
         buffer_size=10*args.rollout_batch_size* est_rollout_length * args.model_retain_epochs,
         obs_shape=args.obs_shape,
@@ -237,7 +244,7 @@ def train(args=get_args()):
             use_diffusion = 'sde' in args.algo_name and args.use_diffusion,
             env_name=task,
             prob_init_obs = args.prob_init_obs,
-            max_steps_per_env = static_get_max_steps_per_env(args.task)
+            max_steps_per_env = env_info['ep_len']
     )
     elif args.algo_name == "tatu_combo" or 'sde' in args.algo_name:
         cql_policy = CQLPolicy(
@@ -271,7 +278,7 @@ def train(args=get_args()):
             use_diffusion = 'sde' in args.algo_name and args.use_diffusion,
             env_name=task,
             prob_init_obs = args.prob_init_obs,
-            max_steps_per_env = static_get_max_steps_per_env(args.task)
+            max_steps_per_env = env_info['ep_len']
     )
     else:
         raise Exception("Invalid algo name")
@@ -302,6 +309,7 @@ def train(args=get_args()):
     )
 
     logger.print(f"use diffusion: {args.use_diffusion} rollout_length: {args.rollout_length:d} reward_penalty_coef: {args.reward_penalty_coef:.2f} pessimism_coef: {args.pessimism_coef:.2f} min_q_weight :{args.beta} real_ratio:{args.real_ratio}")
+    
     # pretrain dynamics model on the whole dataset
     trainer.train_dynamics()
     
