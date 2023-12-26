@@ -52,7 +52,7 @@ def get_args():
     parser.add_argument("--dynamics-name", type=str, default=None)
 
     # Offline MBRL training arguments
-    parser.add_argument("--reward-penalty-coef", type=float, default=1.0)
+    parser.add_argument("--reward-penalty-coef", type=float, default=0.00001)
     parser.add_argument("--rollout-length", type=int, default=15)
     parser.add_argument("--rollout-batch-size", type=int, default=5000)
     parser.add_argument("--rollout-freq", type=int, default=1000)
@@ -82,13 +82,33 @@ def get_args():
 
     args= parser.parse_args()
 
+    # This may be useless if JAX is already imported before this line.
+    # Better specified it in the command line argument XLA_PYTHON_CLIENT_MEM_FRACTION=0.25 python train_tatu_modelbased.py xxxx
     os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = str(args.jax_gpu_mem_frac)
 
+    # sde_model_list = {
+    #     'hopper-random-v2':["hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl", "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"],
+    #     'halfcheetah-random-v2': ["random_hc_hr-5_dt-0.010_e40_sde.pkl", "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl", "hc_rand_v2_dsc0.1_simple6_hr-1_dt-0.05_sde.pkl"]
+    # }
+
     sde_model_list = {
-        'hopper-random-v2':["hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl", "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"],
-        'halfcheetah-random-v2': ["random_hc_v5_hr-50_dt-0.010_sde.pkl", "random_hc_hr-50_dt-0.010_sde.pkl", "random_hc_v5_hr-50_dt-0.010_sde.pkl" ],
+        'hopper-random-v2': {
+            0: {'name': 'simple_hr-2',  'file': "hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl"},
+            1: {'name': 'simple5_hr-1', 'file': "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"},
+        },
+        'halfcheetah-random-v2': {
+            # python train_tatu_modelbased.py --task halfcheetah-random-v2 --algo-name tatu_mopo_sde --rollout-length 15 --pessimism-coef 0.1 --actor-lr 0.0003 --critic-lr 0.0003 --seed 1 --reward-penalty-coef 0.001 --use_diffusion --sde_model_id 0 --real-ratio 0.05 --sde_num_particles 1
+            0: {'name': 'simple4_hr-1', 'file': "random_hc_v5_hr-50_dt-0.010_sde.pkl"}, # The best so far?
+            1: {'name': 'simple4_hr-1', 'file': "random_hc_hr-50_dt-0.010_sde.pkl"}, # Most tested
+            2: {'name': 'simple4_hr-1', 'file': "random_hc_v3_hr-50_dt-0.010_sde.pkl"}, # Should be identical to 0
+            # 0: {'name': 'simple4_hr-1', 'file': "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl"},
+            # 1: {'name': 'simple6_hr-1', 'file': "hc_rand_v2_dsc0.1_simple6_hr-1_dt-0.05_sde.pkl"},
+        }
     }
-    args.sde_model_path = sde_model_list[args.task][args.sde_model_id]
+
+
+    args.sde_model_path = sde_model_list[args.task][args.sde_model_id]['file']
+    args.sde_model_name = sde_model_list[args.task][args.sde_model_id]['name']
 
     return args
 
@@ -294,7 +314,8 @@ def train(args=get_args()):
     # log
     t0 = datetime.datetime.now().strftime("%m%d_%H%M%S")
     if "sde" in args.algo_name:
-        log_file = f"diff={args.use_diffusion}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}_pc={args.pessimism_coef}_rr={args.real_ratio}_ep={args.epoch}_rfq={args.rollout_freq}_spe={args.step_per_epoch}_alr={args.actor_lr}_clr={args.critic_lr}_seed={args.seed}_{t0}"
+        log_file = f"{args.sde_model_name}_diff={args.use_diffusion}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}_pc={args.pessimism_coef}"+\
+            f"_rr={args.real_ratio}_ep={args.epoch}_rfq={args.rollout_freq}_spe={args.step_per_epoch}_alr={args.actor_lr}_clr={args.critic_lr}_seed={args.seed}_{t0}"
     else:
         log_file = f'critic_num_{critic_num}_seed_{args.seed}_{t0}-{args.task.replace("-", "_")}_{args.algo_name}'
     log_path = os.path.join(args.logdir, args.task, args.algo_name, log_file)
