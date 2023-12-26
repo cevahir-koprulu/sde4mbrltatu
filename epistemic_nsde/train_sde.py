@@ -342,6 +342,7 @@ def train_model(params, train_data, test_data,
         # m_numpy_rng.shuffle(train_data_idx)
 
         # Iterate on the total number of batches
+        _train_res = None
         for i in tqdm(range(num_evals_per_epoch), leave=False):
 
             # # Generate the batch data -> The way to do it when splitting in fixed chunks
@@ -383,20 +384,28 @@ def train_model(params, train_data, test_data,
             incl_diff = epoch > warmup_diffusion and 'diffusion_density_nn' in params['model']
             # Update the weight of the nmodel via SGD
             update_start = time.time()
-            nn_params, opt_state, _train_res = update(nn_params, opt_state, batch_data, update_rng, incl_diff)
+            nn_params, opt_state, temp_train_res = update(nn_params, opt_state, batch_data, update_rng, incl_diff)
             tree_flatten(opt_state)[0][0].block_until_ready()
             update_end = time.time() - update_start
-            # Include time in _train_res for uniformity with test dataset
-            _train_res['Pred. Time'] = update_end
+            # Include time in temp_train_res for uniformity with test dataset
+            temp_train_res['Pred. Time'] = update_end
 
             # Set the optimal parameters for the training loss
             if itr_count == 0:
-                _train_dict_init = _train_res
-                opt_variables_train = _train_res
+                _train_dict_init = temp_train_res
+                opt_variables_train = temp_train_res
 
             # Increment the iteration count
             itr_count += 1
 
+            # Let's do the moving average of the temp_train_res
+            if _train_res is None:
+                _train_res = temp_train_res
+            else:
+                smoohting_factor = 0.9
+                for _k, _v in temp_train_res.items():
+                    _train_res[_k] = smoohting_factor * _train_res[_k] + (1-smoohting_factor) * _v
+                    
             # Total elapsed compute time for update only
             if itr_count >= 5: # Remove the first few steps due to jit compilation
                 update_time_average = (itr_count * update_time_average + update_end) / (itr_count + 1)
@@ -406,69 +415,79 @@ def train_model(params, train_data, test_data,
                 update_time_average = update_end
 
 
-            # Check if it is time to compute the metrics for evaluation
-            if itr_count % trainer_params['test_freq'] == 0 or itr_count == 1:
-                # Print the logging information
-                print_str_test = '----------------------------- Eval on Test Data [epoch={} | num_batch = {}] -----------------------------\n'.format(epoch, i)
-                tqdm.write(print_str_test)
+        # Check if it is time to compute the metrics for evaluation
+        # if itr_count % trainer_params['test_freq'] == 0 or itr_count == 1:
+        # Print the logging information
+        print_str_test = '----------------------------- Eval on Test Data [epoch={} | num_batch = {}] -----------------------------\n'.format(epoch, i)
+        tqdm.write(print_str_test)
 
-                # Split the random number generator
-                train_rng, eval_rng_test = jax.random.split(train_rng)
+        _test_res = None
+        for _num_test_eval in range(trainer_params['num_test_eval_per_epoch']):
+            # Split the random number generator
+            train_rng, eval_rng_test = jax.random.split(train_rng)
+            # Compute the loss on the entire testing set
+            temp_test_res = evaluate_loss(nn_params, eval_rng_test)
+            if _test_res is None:
+                _test_res = temp_test_res
+            else:
+                # Let's sum the results that will be averaged later
+                for _k, _v in temp_test_res.items():
+                    _test_res[_k] += _v
+        # Average the results
+        _test_res = {_k : _v / trainer_params['num_test_eval_per_epoch'] for _k, _v in _test_res.items()}
 
-                # # Compute the loss on the entire testing set
-                _test_res = evaluate_loss(nn_params, eval_rng_test)
-                _param_train =  { _k : get_value_from_dict(_k, nn_params) for _k in _param2show}
-                for _kparam, _vparam in _param_train.items():
-                    if _vparam is None:
-                        continue
-                    _test_res[_kparam] = _vparam
+        _param_train =  { _k : get_value_from_dict(_k, nn_params) for _k in _param2show}
+        for _kparam, _vparam in _param_train.items():
+            if _vparam is None:
+                continue
+            _test_res[_kparam] = _vparam
 
-                # First time we have a value for the loss function
-                # if itr_count == 1 or (opt_variables['Loss Fy'] > _test_res['Loss Fy'] + 10000):
-                if trainer_params.get('epochs_before_checking_improv', 0) >= epoch or model_has_improved(opt_variables_test, opt_variables_train, _test_res, _train_res):
-                    opt_params_dict = nn_params
-                    opt_variables_test = _test_res
-                    opt_variables_train = _train_res
-                    count_epochs_no_improv = 0
-                
-                # Do some formating for console printing on the training dataset
-                fill_dict(log_data_train, _train_res, 'Train', '{:.3e}')
-                fill_dict(log_data_train, opt_variables_train, 'Opt. Train', '{:.3e}')
-                fill_dict(log_data_train, _train_dict_init, 'Init Train', '{:.3e}')
+        # First time we have a value for the loss function
+        # if itr_count == 1 or (opt_variables['Loss Fy'] > _test_res['Loss Fy'] + 10000):
+        if trainer_params.get('epochs_before_checking_improv', 0) >= epoch or model_has_improved(opt_variables_test, opt_variables_train, _test_res, _train_res):
+            opt_params_dict = nn_params
+            opt_variables_test = _test_res
+            opt_variables_train = _train_res
+            count_epochs_no_improv = 0
+        
+        # Do some formating for console printing on the training dataset
+        fill_dict(log_data_train, _train_res, 'Train', '{:.3e}')
+        fill_dict(log_data_train, opt_variables_train, 'Opt. Train', '{:.3e}')
+        fill_dict(log_data_train, _train_dict_init, 'Init Train', '{:.3e}')
 
-                # Do some formating for console printing on the testing dataset
-                fill_dict(log_data_test, _test_res, 'Test', '{:.3e}')
-                fill_dict(log_data_test, opt_variables_test, 'Opt. Test', '{:.3e}')
-                fill_dict(log_data_test, _test_dict_init, 'Init Test', '{:.3e}')
+        # Do some formating for console printing on the testing dataset
+        fill_dict(log_data_test, _test_res, 'Test', '{:.3e}')
+        fill_dict(log_data_test, opt_variables_test, 'Opt. Test', '{:.3e}')
+        fill_dict(log_data_test, _test_dict_init, 'Init Test', '{:.3e}')
 
 
-                print_str = 'Iter {:05d} | Total Update Time {:.2e} | Update time {:.2e} | Epochs no Improv {}\n\n'.format(itr_count, total_time, update_end, count_epochs_no_improv)
-                print_str += pretty_dict(log_data_train)
-                print_str += '\n\n'
-                print_str += pretty_dict(log_data_test)
-                print_str += '\n'
-                tqdm.write(print_str)
+        print_str = 'Iter {:05d} | Total Update Time {:.2e} | Update time {:.2e} | Epochs no Improv {}\n\n'.format(itr_count, total_time, update_end, count_epochs_no_improv)
+        print_str += pretty_dict(log_data_train)
+        print_str += '\n\n'
+        print_str += pretty_dict(log_data_test)
+        print_str += '\n'
+        tqdm.write(print_str)
 
 
-            last_iteration = (epoch == trainer_params['nepochs']-1 and i == num_evals_per_epoch-1)
-            last_iteration |= (count_epochs_no_improv > trainer_params['patience'])
+        last_iteration = (epoch == trainer_params['nepochs']-1 and i == num_evals_per_epoch-1)
+        last_iteration |= (count_epochs_no_improv > trainer_params['patience'])
 
-            if itr_count % trainer_params['save_freq'] == 0 or last_iteration:
-                m_dict_res = {'best_params' : opt_params_dict,
-                                'last_params' : nn_params,
-                                'total_time' : total_time,
-                                'compute_time_update' : compute_time_update,
-                                'opt_values_train' : opt_variables_train, 
-                                'opt_values_test' : opt_variables_test,
-                                'training_parameters' : m_parameters_dict}
-                outfile = open(out_data_file+'.pkl', "wb")
-                pick_dump(m_dict_res, outfile)
-                outfile.close()
+        # if itr_count % trainer_params['save_freq'] == 0 or last_iteration:
+        m_dict_res = {'best_params' : opt_params_dict,
+                        'last_params' : nn_params,
+                        'total_time' : total_time,
+                        'compute_time_update' : compute_time_update,
+                        'opt_values_train' : opt_variables_train, 
+                        'opt_values_test' : opt_variables_test,
+                        'training_parameters' : m_parameters_dict}
+        outfile = open(out_data_file+'.pkl', "wb")
+        pick_dump(m_dict_res, outfile)
+        outfile.close()
 
-                # Now let save the parameter of the model
-                outfile = open(out_data_file+'_sde.pkl', 'wb')
-                pick_dump({'sde' : opt_params_dict, 'nominal' : params['model']}, outfile)
-                outfile.close()
+        # Now let save the parameter of the model
+        outfile = open(out_data_file+'_sde.pkl', 'wb')
+        pick_dump({'sde' : opt_params_dict, 'nominal' : params['model']}, outfile)
+        outfile.close()
 
         if last_iteration:
             break

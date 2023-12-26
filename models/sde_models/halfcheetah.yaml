@@ -1,10 +1,9 @@
-# XLA_PYTHON_CLIENT_MEM_FRACTION=0.5 python cartpole_sde.py --fun train_sde --cfg cartpole_sde.yaml --out cartpole_bb
-
 # File where to save the output
-output_file: hc_rand_v2_dsc0.1_simple4
+output_file: random_hc_v5
 
 # Training and testing data trajectory
 data_dir: halfcheetah-random-v2
+# data_dir: halfcheetah-medium-expert-v2
 
 # Specify what ratio of the dataset is being used for test data
 ratio_test: 0.1
@@ -13,7 +12,8 @@ remove_test_data: False # Specify if the test data must be removed from the trai
 
 # Model parameters
 model:
-  # SOlver for the problem
+
+  # Solver for the problem
   sde_solver: simpletic_euler_maruyama
   # sde_solver: euler_maruyama
   
@@ -21,31 +21,21 @@ model:
   stepsize: 0.05 # skip_frames * xml_delta_t
 
   residual_forces:
-    init_value: 0.01
-    hidden_layers: [64, 64] # [32, 32] # [8, 24]
+    include_control: False
+    hidden_layers: [128, 128]
     activation_fn: 'tanh'
-    # num_out: 9
   
   coriolis_matrix:
-    init_value: 0.01
-    hidden_layers: [32, 32] # [32, 32] # [8, 24]
+    hidden_layers: [64, 64]
     activation_fn: 'tanh'
   
   actuator_forces:
-    init_value: 0.001
-    hidden_layers: [32, 32] # [32, 32] # [8, 24]
+    hidden_layers: [64, 64]
     activation_fn: 'tanh'
   
   gravity:
-    init_value: 0.001
-    hidden_layers: [32, 32] # [32, 32] # [8, 24]
+    hidden_layers: [64, 64]
     activation_fn: 'tanh'
-
-  # residual_control:
-  #   init_value: 0.01
-  #   num_out: 9
-  #   hidden_layers: [32, 32] # [16, 16]
-  #   activation_fn: 'tanh'
 
   # A priori knowledge of the noise distribution outside of the training dataset over the given prior dynamics knowledge
   # Coordinate/Angle entries have 0.001, velocity entries have 0.01
@@ -53,9 +43,6 @@ model:
                         0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1] 
   # noise_prior_params: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
   #                       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] 
-
-  # # Consider additional side information
-  # side_info: True # Inject euler-lagrange side information if True
 
   # Is the noise term dependent on the control? Does the density needs to be estimated by merging state and control?
   # For now, set to False. Later might experiment with True, if compiles.
@@ -72,7 +59,6 @@ model:
     # indx_noise_in: [0, ... 16]
     indx_noise_in: [0,1,8,9,10]
 
-
     # # The learned noise only operates on this set of outputs
     # [vx, vy, avel1, avel2, avel3, avel4, avel5, avel6, avel7]
     indx_noise_out: [8, 9, 10, 11, 12, 13, 14, 15, 16] # If not specified, it is all the putputs
@@ -82,6 +68,7 @@ model:
       type: scaler
       init_value: 0.01
     
+    # The main density function that maps subset of states to real-valued between 0-1 representing distance awareness
     density_nn:
       init_value: 0.01
       activation_fn: swish
@@ -98,7 +85,7 @@ model:
 sde_loss:
 
   # Random seed for initializing the neural networks
-  seed: 1
+  seed: 25
 
   # Number of particles when fitting the SDE -> If different to the default model num_particles
   num_particles: 1
@@ -109,47 +96,28 @@ sde_loss:
   # u_sampling_strategy: random
 
   # This is the horizon of integration when computing the loss
-  horizon: 1
+  horizon: 10
 
   # Discount factor for ong horizon predictor
-  discount_pred: 0.5 # 0.5
+  discount_pred: 0.1 # Useless for horizon 1
 
-  # # How the states are scaled in the loss computation
-  # # Similar to likehood variance in loss 2 computation of NNL
-  # # This values is automatically inferred from data
-  # Scaling importance on state fitting
-  # THE SMALLER, THE LESS NOISY THE LIKEHOOD WITH RESPECT TO THE CORRESPONDING AND THE MORE IMPORTANT THE STATE BECOMES WHEN FITTING.
-  # [pos_z, ang_1, ang_2, ang_3, ang_4, vel_x, vel_z, ang_vel_1, ang_vel_2, ang_vel_3, ang_vel_4]
-  # updated_obs_weights:
-  #   # 0 : 1
-  #   # 1 : 100
-  #   2: 100
-  #   3: 100
-  #   4: 100
-  #   5: 100
-  #   6: 100
-  #   7: 100
-    # 8 : 0.1
-    # 9 : 0.1
-  #   10: 4
-  #   11: 4
-  #   12: 4
-  #   13: 4
-  #   14: 4
-  #   15: 4
-  #   16: 4
-    # 10: 0.1
-  #   # 0: 0.1
-  #   # 1: 0.1 # arooty
-  #   # 2: 0.1
-  #   # 3: 0.1
-  #   # 4: 0.1
-  #   # 5: 0.1
-  #   # 6: 0.1
-  #   # 7: 0.1
-  #   # 8: 0.1 # vx
-  #   # 9: 0.1 # vz
-
+  # # # How the states are scaled in the loss computation
+  # # # Similar to likehood variance in loss 2 computation of NNL
+  # # # This values is automatically inferred from data
+  # # Scaling importance on state fitting
+  # # THE SMALLER, THE LESS NOISY THE LIKEHOOD WITH RESPECT TO THE CORRESPONDING AND THE MORE IMPORTANT THE STATE BECOMES WHEN FITTING.
+  # # [z, ang1, ang2, ang3, ang4, ang5, ang6, ang7
+  #  #  vx, vz, avel1, avel2, avel3, avel4, avel5, avel6, avel7]
+  updated_obs_weights:
+    0: 0.1
+    1: 0.1
+    2: 0.1
+    3: 0.1
+    4: 0.1
+    5: 0.1
+    6: 0.1
+    7: 0.1
+    8: 0.1
 
   # Density loss parameters
   density_loss:
@@ -162,7 +130,7 @@ sde_loss:
     ball_radius: 0.1 # THe radius of the ball to sample for enforcing local strong convexity
     ball_nsamples: 20 # Number of points to sample in the ball
   
-  # Fitting trajectory warmup until including the epistemic uncertainty
+  # Fitting trajectory warmup until including the epistemic uncertainty loss
   warmup_diffusion: 10
 
   # Penalty for the error on the prediction
@@ -175,11 +143,12 @@ sde_loss:
   pen_density_scvex: 1.0
 
   # Regularization penalty default value for all parameters
-  pen_weights: 1.0e-10 # Check others, may need adjustment
+  pen_weights: 1.0e-8 # Check others, may need adjustment
 
   # Penalty on mu learnt
-  pen_mu_type: lin_inv
-  pen_mu_coeff: 100.0 # 10.0 # May be too high?
+  # pen_mu_type: lin_inv
+  # pen_mu_coeff: 100.0 # 10.0 # May be too high?
+
   # Scaling down the dad term importance relative to data
   pen_scvex_mult: 1.0
 
@@ -192,7 +161,6 @@ sde_loss:
     density: 0
     # res_forces: 10.0
     # coriolis: 10.0
-    # MassLowerT: 10.0
 
 sde_optimizer:
   - name: scale_by_adam
@@ -204,36 +172,23 @@ sde_optimizer:
   #     weight_decay: 0.001
   - name: linear_schedule
     scheduler: True
-    # params:
-    #   init_value: -0.001 # Initial learning rate (Negative value for minimization)
-    #   end_value: -0.001
-    #   transition_steps: 40000 # Basically the maximum number of gradient steps 
     params:
       init_value: -0.01 # Initial learning rate (Negative value for minimization)
       end_value: -0.001
-      transition_steps: 40000 # Basically the maximum number of gradient steps 
-  # - name: piecewise_constant_schedule
-  #   scheduler: True
-  #   params:
-  #     init_value: -0.001 # Initial learning rate (Negative value for minimization)
-  #     boundaries_and_scales:
-  #       4000: 10.0
-  #       18000: 0.5
-  #       30000: 0.2
+      transition_steps: 80000 # Basically the maximum number of gradient steps 
   
 
 # Training parameters
 sde_training:
   train_batch: 128 # 512 # The mini batch size for the training dataset
   test_batch: 512 # The mini batch size for the training dataset
-  nepochs: 5000 # The number of epochs (full pass over the training dataset)
-  patience: 2000 # The number of epochs after which to stop the learningif no improvement in solution
-  test_freq: 50 # Number of gradient steps after which to evaluate and display losses
-  save_freq: 500 # Number of gradient steps after which to save the current losses+nn
+  nepochs: 200 # The number of epochs (full pass over the training dataset)
+  patience: 20 # The number of epochs after which to stop the learningif no improvement in solution
+  num_test_eval_per_epoch: 10
   TestStopingCrit:
-    # dataLoss: 1.0 # 0.1
+    # dataLoss: 100.0
     totalLoss: 1
     # LossUnc: 100
-    # TestStdData: -0.1 # Maximime the noise of the learned SDE
   TrainStopingCrit:
-    totalLoss: 0.1
+    totalLoss: 1.0
+    LossUnc: 0.1

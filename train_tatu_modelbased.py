@@ -86,7 +86,7 @@ def get_args():
 
     sde_model_list = {
         'hopper-random-v2':["hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl", "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"],
-        'halfcheetah-random-v2': ["random_hc_hr-5_dt-0.010_e40_sde.pkl", "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl", "hc_rand_v2_dsc0.1_simple6_hr-1_dt-0.05_sde.pkl"]
+        'halfcheetah-random-v2': ["random_hc_v5_hr-50_dt-0.010_sde.pkl", "random_hc_hr-50_dt-0.010_sde.pkl", "random_hc_v5_hr-50_dt-0.010_sde.pkl" ],
     }
     args.sde_model_path = sde_model_list[args.task][args.sde_model_id]
 

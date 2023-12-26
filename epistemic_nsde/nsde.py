@@ -639,9 +639,15 @@ class ControlledSDE(hk.Module):
             return _error_data, grad_norm, sconvex, _mu_coeff, extra
 
         # Here haiku is not running initialization
-        rng_density = jax.random.split(rng_density, ymeas.shape[0]-1)
-        den_yinput = ymeas[:-1]
-        den_uinput = uVal
+        # rng_density = jax.random.split(rng_density, ymeas.shape[0]-1)
+        # den_yinput = ymeas[:-1]
+        # den_uinput = uVal
+
+        # rng_density = jax.random.split(rng_density, ymeas.shape[0]-1)
+        # den_yinput = ymeas[:-1]
+        rng_density = jax.random.split(rng_density, 1)
+        den_yinput = ymeas[:1, :]
+        den_uinput = uVal[:1, :]
 
         # Get the gradient and the convex loss
         grad_norm, sconvex, _density_val, _mu_coeff = jax.vmap(my_density_loss)(den_yinput, den_uinput, rng_density)
@@ -828,6 +834,7 @@ def create_model_loss_fn(model_params, loss_params, sde_constr=ControlledSDE, ve
 
     # Now let's get the data stepsize from the loss dictionary -> If not present, use the default value is the step_size
     data_stepsize = loss_params.get('data_stepsize', step_size)
+    
     # Let's check if the stepsize is a multiple of the data_stepsize
     if abs (step_size - data_stepsize) <= 1e-6:
         num_steps2data = 1
@@ -978,15 +985,15 @@ def create_model_loss_fn(model_params, loss_params, sde_constr=ControlledSDE, ve
             total_sum += loss_data * loss_params['pen_data']
 
         total_sum_unc = 0.0
-        if loss_params.get('pen_grad_density', 0) > 0 and include_diff:
+        if loss_params.get('pen_grad_density', 0) > 0:
             total_sum_unc += loss_params['pen_grad_density'] * loss_grad_density  * pen_scvex_mult
         
-        if loss_params.get('pen_density_scvex', 0) > 0 and include_diff:
+        if loss_params.get('pen_density_scvex', 0) > 0:
             total_sum_unc += loss_params['pen_density_scvex'] * loss_density_scvex * pen_scvex_mult
         
-        if loss_params.get('pen_mu_coeff', 0) > 0 and include_diff:
+        if loss_params.get('pen_mu_coeff', 0) > 0:
             # We seek to maximize the mu coefficient
-            pen_mu_type = loss_params.get('pen_mu_type', 'quad_inv')
+            pen_mu_type = loss_params.get('pen_mu_type', 'lin_inv')
             if  pen_mu_type == 'quad_inv':
                 loss_mu_coeff = 1.0 / mu_coeff_mean**2
             elif pen_mu_type == 'lin_inv':
@@ -996,8 +1003,10 @@ def create_model_loss_fn(model_params, loss_params, sde_constr=ControlledSDE, ve
             else:
                 raise ValueError('Unknown pen_mu_type: {}. Choose from quad_inv, lin_inv, exp_inv'.format(pen_mu_type))
             total_sum_unc += loss_mu_coeff * loss_params['pen_mu_coeff'] * pen_scvex_mult
+        
+        if include_diff:
+            total_sum += total_sum_unc
 
-        total_sum += total_sum_unc
         if loss_params.get('pen_weights', 0) > 0:
             total_sum += loss_params['pen_weights'] * w_loss
             
