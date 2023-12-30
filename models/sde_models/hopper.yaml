@@ -1,11 +1,8 @@
-# XLA_PYTHON_CLIENT_MEM_FRACTION=0.5 python cartpole_sde.py --fun train_sde --cfg cartpole_sde.yaml --out cartpole_bb
-# python train_tatu_modelbased.py --task hopper-random-v2 --algo-name tatu_mopo_sde --rollout-length 5 --pessimism-coef 0.1 --actor-lr 0.0003 --critic-lr 0.0003 --seed 20 --reward-penalty-coef 0.0001 --use_diffusion --sde_model_id 1 --prob_init_obs 0 --rollout-freq 1000 --real-ratio 0.05 --sde_num_particles 5
-# python train_tatu_modelbased.py --task hopper-random-v2 --algo-name tatu_mopo_sde --rollout-length 5 --pessimism-coef 1.25 --actor-lr 0.0005 --critic-lr 0.0005 --seed 1 --reward-penalty-coef 0.00001 --use_diffusion --sde_model_id 1 --prob_init_obs 0 --rollout-freq 1000 --real-ratio 0.05 --sde_num_particles 5
-# File where to save the output
-output_file: hop_rand_v2_dsc0.1_simple6
+output_file: random_hop_v3
 
 # Training and testing data trajectory
 data_dir: hopper-random-v2
+# data_dir: hopper-medium-expert-v2
 
 # Specify what ratio of the dataset is being used for test data
 ratio_test: 0.1
@@ -14,46 +11,35 @@ remove_test_data: True # Specify if the test data must be removed from the train
 
 # Model parameters
 model:
-  # SOlver for the problem
+
+  # Solver for the problem
   sde_solver: simpletic_euler_maruyama
   # sde_solver: euler_maruyama
   
   # Stepsize for integration
-  stepsize: 0.008 # skip_frames * xml_delta_t
+  stepsize: 0.05 # skip_frames * xml_delta_t
 
   residual_forces:
-    init_value: 0.01
-    hidden_layers: [64, 64] # [32, 32] # [8, 24]
+    # include_control: False
+    hidden_layers: [64, 64]
     activation_fn: 'tanh'
-    # num_out: 9
   
   coriolis_matrix:
-    init_value: 0.01
-    hidden_layers: [32, 32] # [32, 32] # [8, 24]
+    hidden_layers: [32, 32]
     activation_fn: 'tanh'
   
   actuator_forces:
-    init_value: 0.001
-    hidden_layers: [32, 32] # [32, 32] # [8, 24]
+    hidden_layers: [32, 32]
     activation_fn: 'tanh'
   
   gravity:
-    init_value: 0.001
-    hidden_layers: [32, 32] # [32, 32] # [8, 24]
+    hidden_layers: [32, 32]
     activation_fn: 'tanh'
-
-  # residual_control:
-  #   init_value: 0.01
-  #   num_out: 9
-  #   hidden_layers: [32, 32] # [16, 16]
-  #   activation_fn: 'tanh'
 
   # A priori knowledge of the noise distribution outside of the training dataset over the given prior dynamics knowledge
   # Coordinate/Angle entries have 0.001, velocity entries have 0.01
   noise_prior_params: [0.01, 0.01, 0.01, 0.01, 0.01,
                         0.1, 0.1, 0.1, 0.1, 0.1, 0.1] 
-  # noise_prior_params: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
-  #                       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] 
 
   # Is the noise term dependent on the control? Does the density needs to be estimated by merging state and control?
   # For now, set to False. Later might experiment with True, if compiles.
@@ -95,7 +81,7 @@ model:
 sde_loss:
 
   # Random seed for initializing the neural networks
-  seed: 1
+  seed: 25
 
   # Number of particles when fitting the SDE -> If different to the default model num_particles
   num_particles: 1
@@ -106,7 +92,7 @@ sde_loss:
   # u_sampling_strategy: random
 
   # This is the horizon of integration when computing the loss
-  horizon: 1
+  horizon: 5
 
   # Discount factor for ong horizon predictor
   discount_pred: 0.1 # 0.5
@@ -117,10 +103,15 @@ sde_loss:
   # # Scaling importance on state fitting
   # # THE SMALLER, THE LESS NOISY THE LIKEHOOD WITH RESPECT TO THE CORRESPONDING AND THE MORE IMPORTANT THE STATE BECOMES WHEN FITTING.
   # # [pos_z, ang_1, ang_2, ang_3, ang_4, vel_x, vel_z, ang_vel_1, ang_vel_2, ang_vel_3, ang_vel_4]
-  # updated_obs_weights:
-  #   5 : 0.1
-  #   6: 0.8
-  #   7: 0.5
+  updated_obs_weights:
+    0: 0.1
+    1: 0.1
+    # 2: 0.1
+    # 3: 0.1
+    # 4: 0.1
+    5: 0.1
+    # 6: 0.1
+    7: 0.1
 
 
   # Density loss parameters
@@ -138,7 +129,7 @@ sde_loss:
   warmup_diffusion: 10
 
   # Penalty for the error on the prediction
-  pen_data: 1.0
+  pen_data: 100.0
 
   # Penalty on the gradient of the density loss
   pen_grad_density: 0.1 # 0.01
@@ -147,11 +138,11 @@ sde_loss:
   pen_density_scvex: 1.0
 
   # Regularization penalty default value for all parameters
-  pen_weights: 1.0e-8 # Check others, may need adjustment
+  pen_weights: 1.0e-10 # Check others, may need adjustment
 
-  # Penalty on mu learnt
-  pen_mu_type: lin_inv
-  pen_mu_coeff: 100.0 # 10.0 # May be too high?
+  # # Penalty on mu learnt
+  # pen_mu_type: lin_inv
+  # pen_mu_coeff: 100.0 # 10.0 # May be too high?
   # Scaling down the dad term importance relative to data
   pen_scvex_mult: 1.0 # 1.0
 
@@ -176,36 +167,23 @@ sde_optimizer:
   #     weight_decay: 0.001
   - name: linear_schedule
     scheduler: True
-    # params:
-    #   init_value: -0.001 # Initial learning rate (Negative value for minimization)
-    #   end_value: -0.001
-    #   transition_steps: 40000 # Basically the maximum number of gradient steps 
     params:
       init_value: -0.01 # Initial learning rate (Negative value for minimization)
       end_value: -0.001
-      transition_steps: 60000 # Basically the maximum number of gradient steps 
-  # - name: piecewise_constant_schedule
-  #   scheduler: True
-  #   params:
-  #     init_value: -0.001 # Initial learning rate (Negative value for minimization)
-  #     boundaries_and_scales:
-  #       4000: 10.0
-  #       18000: 0.5
-  #       30000: 0.2
+      transition_steps: 100000 # Basically the maximum number of gradient steps 
   
 
 # Training parameters
 sde_training:
   train_batch: 512 # 512 # The mini batch size for the training dataset
   test_batch: 512 # The mini batch size for the training dataset
-  nepochs: 5000 # The number of epochs (full pass over the training dataset)
-  patience: 2000 # The number of epochs after which to stop the learningif no improvement in solution
-  test_freq: 50 # Number of gradient steps after which to evaluate and display losses
-  save_freq: 500 # Number of gradient steps after which to save the current losses+nn
+  nepochs: 200 # The number of epochs (full pass over the training dataset)
+  patience: 20 # The number of epochs after which to stop the learningif no improvement in solution
+  num_test_eval_per_epoch: 10
   TestStopingCrit:
-    dataLoss: 100.0 # 0.1
+    # dataLoss: 100.0
     totalLoss: 1
     # LossUnc: 100
-    # TestStdData: -0.1 # Maximime the noise of the learned SDE
   TrainStopingCrit:
-    totalLoss: 0.1
+    totalLoss: 1.0
+    LossUnc: 0.1

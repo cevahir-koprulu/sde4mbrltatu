@@ -25,7 +25,7 @@ def get_mlp_from_params(params, out_num, name):
                                             name = name)
 
 
-def extract_training_and_test_data(env_dataset_dir, ratio_test, ratio_seed, remove_test_data=False):
+def extract_training_and_test_data(env_dataset_dir, ratio_test, ratio_seed, remove_test_data=False, min_horizon=5):
     """Extract the training and testing data from the dataset
     Args:
         env_dataset_dir (str): The path to the dataset
@@ -40,11 +40,16 @@ def extract_training_and_test_data(env_dataset_dir, ratio_test, ratio_seed, remo
     # The full training dataset
     full_data = []
     min_traj_len = 0
+    failed_traj = 0
     for data_dir in data_dirs:
         new_data_set = get_formatted_dataset_for_nsde_training(data_dir, min_traj_len)
         for _data in new_data_set:
-            if _data['y'].shape[0] >= 2:
+            if _data['y'].shape[0] >= min_horizon:
                 full_data.append(_data)
+            else:
+                failed_traj += 1
+                
+    print("Number of too short trajectories: {}".format(failed_traj))
                 
     # Obtain the number of testing trajectories and make sure it is always greater than 1 and less than the total number of trajectories
     num_test_traj = max(1, min(int(ratio_test * len(full_data)), len(full_data)))

@@ -69,7 +69,8 @@ def analyze_model(dataset, model_names, hr, num_extra_steps, num_sample, num_tra
     # curr_traj_u = data[traj_idx]['u'][:curr_traj_y.shape[0]]
 
     # Time evolution of the trajectory
-    traj_time_evol = np.array([TIMESTEP_ENV * i for i in range(curr_traj_y_list[-1].shape[0])])
+    # traj_time_evol = np.array([TIMESTEP_ENV * i for i in range(curr_traj_y_list[-1].shape[0])])
+    curr_traj_time_list = [np.array([TIMESTEP_ENV * i for i in range(_y.shape[0])]) for _y in curr_traj_y_list]
 
     # Names of the states and controls
     state_names = OBS_NAMES
@@ -112,7 +113,7 @@ def analyze_model(dataset, model_names, hr, num_extra_steps, num_sample, num_tra
         model_fn, t_model = create_model(model_name, sampling_cfg, load_predictor_function)
         base_model_fn_jit = jax.jit(model_fn)
         err_res = []
-        for curr_traj_y, curr_traj_u in zip(curr_traj_y_list, curr_traj_u_list):
+        for curr_traj_y, curr_traj_u, traj_time_evol in zip(curr_traj_y_list, curr_traj_u_list, curr_traj_time_list):
             _xres, _tres, _err_res = n_steps_analysis(curr_traj_y, curr_traj_u, base_model_fn_jit, t_model, TIMESTEP_ENV, traj_time_evol)
             err_res.extend(_err_res)
 
@@ -266,8 +267,11 @@ def n_steps_analysis(xtraj, utraj, jit_sampling_fn, time_evol, data_stepsize, tr
     num_steps2data  = int(quot + 0.5)
     # Compute the actual horizon for splitting the trajectories
     traj_horizon = num_steps2data * sampler_horizon
+    utraj = utraj[:xtraj.shape[0]-1] # Remove the input rows if it is same or more than the state
     # Split the trajectory into chunks of size num_steps2data
-    total_traj_size = (xtraj.shape[0] // traj_horizon) * traj_horizon
+    total_traj_size = (utraj.shape[0] // (traj_horizon)) * traj_horizon
+    # print('INFO: ', quot, num_steps2data, traj_horizon, total_traj_size, dt_sampler)
+    # print('INFO: ', xtraj.shape, utraj.shape, total_traj_size, traj_horizon, num_steps2data, sampler_horizon)
 
     # print('INFO: ', quot, num_steps2data, traj_horizon, total_traj_size, dt_sampler)
     # DOwngrade the xevol to its first 4 states
