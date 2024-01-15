@@ -1,8 +1,12 @@
-output_file: random_hop_v3
+# output_file: random_hop_v3
+# output_file: medium_hop_v13
+output_file: medium_expert_hop
 
 # Training and testing data trajectory
-data_dir: hopper-random-v2
-# data_dir: hopper-medium-expert-v2
+# data_dir: hopper-random-v2
+# data_dir: hopper-medium-v2
+# data_dir: hopper-medium-replay-v2
+data_dir: hopper-medium-expert-v2
 
 # Specify what ratio of the dataset is being used for test data
 ratio_test: 0.1
@@ -21,7 +25,7 @@ model:
 
   residual_forces:
     # include_control: False
-    hidden_layers: [64, 64]
+    hidden_layers: [128, 128]
     activation_fn: 'tanh'
   
   coriolis_matrix:
@@ -103,15 +107,15 @@ sde_loss:
   # # Scaling importance on state fitting
   # # THE SMALLER, THE LESS NOISY THE LIKEHOOD WITH RESPECT TO THE CORRESPONDING AND THE MORE IMPORTANT THE STATE BECOMES WHEN FITTING.
   # # [pos_z, ang_1, ang_2, ang_3, ang_4, vel_x, vel_z, ang_vel_1, ang_vel_2, ang_vel_3, ang_vel_4]
-  updated_obs_weights:
-    0: 0.1
-    1: 0.1
-    # 2: 0.1
-    # 3: 0.1
-    # 4: 0.1
-    5: 0.1
-    # 6: 0.1
-    7: 0.1
+  # updated_obs_weights:
+  #   0: 0.1
+  #   1: 0.1
+  #   2: 0.1
+  #   3: 0.1
+  #   4: 0.1
+  #   # 5: 0.1
+  #   # 6: 0.1
+  #   # 7: 0.1
 
 
   # Density loss parameters
@@ -126,7 +130,7 @@ sde_loss:
     ball_nsamples: 20 # Number of points to sample in the ball
   
   # Fitting trajectory warmup until including the epistemic uncertainty
-  warmup_diffusion: 10
+  warmup_diffusion: 30
 
   # Penalty for the error on the prediction
   pen_data: 100.0
@@ -169,13 +173,13 @@ sde_optimizer:
     scheduler: True
     params:
       init_value: -0.01 # Initial learning rate (Negative value for minimization)
-      end_value: -0.001
+      end_value: -0.0001
       transition_steps: 100000 # Basically the maximum number of gradient steps 
   
 
 # Training parameters
 sde_training:
-  train_batch: 512 # 512 # The mini batch size for the training dataset
+  train_batch: 128 # 512 # The mini batch size for the training dataset
   test_batch: 512 # The mini batch size for the training dataset
   nepochs: 200 # The number of epochs (full pass over the training dataset)
   patience: 20 # The number of epochs after which to stop the learningif no improvement in solution
