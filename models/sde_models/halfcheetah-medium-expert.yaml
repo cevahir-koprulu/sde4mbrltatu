@@ -1,0 +1,195 @@
+# File where to save the output
+# output_file: random_hc_v5
+output_file: medium_expert_hc
+
+# Training and testing data trajectory
+# data_dir: halfcheetah-random-v2
+data_dir: halfcheetah-medium-expert-v2
+
+# Specify what ratio of the dataset is being used for test data
+ratio_test: 0.1
+ratio_seed: 10 # Seed used to randomly draw the test data for reproducibility
+remove_test_data: False # Specify if the test data must be removed from the training dataset -> True for expert trajectory
+
+# Model parameters
+model:
+
+  # Solver for the problem
+  sde_solver: simpletic_euler_maruyama
+  # sde_solver: euler_maruyama
+  
+  # Stepsize for integration
+  stepsize: 0.05 # skip_frames * xml_delta_t
+
+  residual_forces:
+    include_control: False
+    hidden_layers: [128, 128]
+    activation_fn: 'tanh'
+  
+  coriolis_matrix:
+    hidden_layers: [64, 64]
+    activation_fn: 'tanh'
+  
+  actuator_forces:
+    hidden_layers: [64, 64]
+    activation_fn: 'tanh'
+  
+  gravity:
+    hidden_layers: [64, 64]
+    activation_fn: 'tanh'
+
+  # A priori knowledge of the noise distribution outside of the training dataset over the given prior dynamics knowledge
+  # Coordinate/Angle entries have 0.001, velocity entries have 0.01
+  noise_prior_params: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+                        0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1] 
+  # noise_prior_params: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 
+  #                       0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] 
+
+  # Is the noise term dependent on the control? Does the density needs to be estimated by merging state and control?
+  # For now, set to False. Later might experiment with True, if compiles.
+  control_dependent_noise: False # If not specified, False is the default value
+
+  # Scaling factor for normalizing neural network inputs
+  data_state_scaling: True # Scale the inputs accoeding to min and max in the dataset
+
+  diffusion_density_nn:
+    # All inputs are contributing to the noise
+    # [z, ang1, ang2, ang3, ang4, ang5, ang6, ang7
+    #  vx, vy, avel1, avel2, avel3, avel4, avel5, avel6, avel7]
+    # Inputs that contribute to the noise estimation -> if no values then all are selected
+    # indx_noise_in: [0, ... 16]
+    indx_noise_in: [0,1,8,9,10]
+
+    # # The learned noise only operates on this set of outputs
+    # [vx, vy, avel1, avel2, avel3, avel4, avel5, avel6, avel7]
+    indx_noise_out: [8, 9, 10, 11, 12, 13, 14, 15, 16] # If not specified, it is all the putputs
+
+    # Density scaler function -> learn heteregeous noise or homogeneous noise with none type
+    scaler_nn:
+      type: scaler
+      init_value: 0.01
+    
+    # The main density function that maps subset of states to real-valued between 0-1 representing distance awareness
+    density_nn:
+      init_value: 0.01
+      activation_fn: swish
+      hidden_layers: [32, 32]
+
+  # Number of particles when sampling posterior or prior distribution
+  # This can be changed at runtime
+  num_particles: 1
+
+  # Horizon of integration when sampling posterior or prior
+  # This can be changed at runtime
+  horizon: 1
+
+sde_loss:
+
+  # Random seed for initializing the neural networks
+  seed: 25
+
+  # Number of particles when fitting the SDE -> If different to the default model num_particles
+  num_particles: 1
+
+  # What stepsize to use when fitting the model to the data
+  data_stepsize: 0.05
+  stepsize: 0.05
+  # u_sampling_strategy: random
+
+  # This is the horizon of integration when computing the loss
+  horizon: 10
+
+  # Discount factor for ong horizon predictor
+  discount_pred: 0.1 # Useless for horizon 1
+
+  # # # How the states are scaled in the loss computation
+  # # # Similar to likehood variance in loss 2 computation of NNL
+  # # # This values is automatically inferred from data
+  # # Scaling importance on state fitting
+  # # THE SMALLER, THE LESS NOISY THE LIKEHOOD WITH RESPECT TO THE CORRESPONDING AND THE MORE IMPORTANT THE STATE BECOMES WHEN FITTING.
+  # # [z, ang1, ang2, ang3, ang4, ang5, ang6, ang7
+  #  #  vx, vz, avel1, avel2, avel3, avel4, avel5, avel6, avel7]
+  updated_obs_weights:
+    0: 0.1
+    1: 0.1
+    2: 0.1
+    3: 0.1
+    4: 0.1
+    5: 0.1
+    6: 0.1
+    7: 0.1
+    8: 0.1
+
+  # Density loss parameters
+  density_loss:
+    learn_mucoeff:
+      type: constant # global
+      # init_value: 0.01
+      # activation_fn: tanh
+      # hidden_layers: [16, 16] # [8, 8] # Maybe more layers or units?
+    mu_coeff: 10.0 # STrong convexity parameter
+    ball_radius: 0.1 # THe radius of the ball to sample for enforcing local strong convexity
+    ball_nsamples: 20 # Number of points to sample in the ball
+  
+  # Fitting trajectory warmup until including the epistemic uncertainty loss
+  warmup_diffusion: 10
+
+  # Penalty for the error on the prediction
+  pen_data: 1.0
+
+  # Penalty on the gradient of the density loss
+  pen_grad_density: 0.01 # 0.01
+
+  # Penalty on the local strong convexity constraints
+  pen_density_scvex: 1.0
+
+  # Regularization penalty default value for all parameters
+  pen_weights: 1.0e-8 # Check others, may need adjustment
+
+  # Penalty on mu learnt
+  # pen_mu_type: lin_inv
+  # pen_mu_coeff: 100.0 # 10.0 # May be too high?
+
+  # Scaling down the dad term importance relative to data
+  pen_scvex_mult: 1.0
+
+  #########################################################################
+  # Extra constraints parameterization
+  #########################################################################
+  default_weights: 1.0
+  special_parameters_pen: # Dev iation from initial guess in init_params
+    scaler: 0
+    density: 0
+    # res_forces: 10.0
+    # coriolis: 10.0
+
+sde_optimizer:
+  - name: scale_by_adam
+    # params:
+    #   b1: 0.999
+    #   b2: 0.9999
+  # - name: add_decayed_weights
+  #   params:
+  #     weight_decay: 0.001
+  - name: linear_schedule
+    scheduler: True
+    params:
+      init_value: -0.01 # Initial learning rate (Negative value for minimization)
+      end_value: -0.001
+      transition_steps: 80000 # Basically the maximum number of gradient steps 
+  
+
+# Training parameters
+sde_training:
+  train_batch: 128 # 512 # The mini batch size for the training dataset
+  test_batch: 512 # The mini batch size for the training dataset
+  nepochs: 200 # The number of epochs (full pass over the training dataset)
+  patience: 20 # The number of epochs after which to stop the learningif no improvement in solution
+  num_test_eval_per_epoch: 10
+  TestStopingCrit:
+    # dataLoss: 100.0
+    totalLoss: 1
+    # LossUnc: 100
+  TrainStopingCrit:
+    totalLoss: 1.0
+    LossUnc: 0.1
