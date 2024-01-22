@@ -165,6 +165,7 @@ def simpletic_euler_maruyama(time_step, y0, us, rng_brownian, drift_fn, diffusio
         # Now the next state can be computed
         _xnext_vel = _x[num_pos:] + drift_t[num_pos:] * dt + diff_vel * _dw[num_pos:] * sqrt_dt
         _xnext_pos = _x[:num_pos] + dt * _xnext_vel[indx_pos_vel] + diff_pos * _dw[:num_pos] * sqrt_dt
+        _xnext_pos += dt * drift_t[:num_pos]
         # _xnext = _x + drift_t * dt + diff_t * _dw
         # _xnext_pos = _x[:num_pos] + dt * drift_t[:num_pos]
         _xnext = jnp.concatenate((_xnext_pos, _xnext_vel))

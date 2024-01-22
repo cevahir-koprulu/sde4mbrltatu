@@ -21,6 +21,6 @@ class StaticFns:
         assert len(obs.shape) == len(next_obs.shape) == len(act.shape) == 2
         alive_bonus = 1.0
         reward = (obs[...,8] + next_obs[...,8])/2.0 # When the agent is alive, reward is its x-velocity
-        reward += alive_bonus*StaticFns.termination_fn(obs, act, next_obs)
+        reward += alive_bonus # *StaticFns.termination_fn(obs, act, next_obs)
         reward -= 1e-3 * np.square(act).sum(axis=-1)
         return reward

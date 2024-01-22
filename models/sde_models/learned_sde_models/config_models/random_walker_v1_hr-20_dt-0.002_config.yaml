@@ -1,0 +1,162 @@
+data_dir: walker2d-random-v2
+model:
+  actuator_forces:
+    activation_fn: relu
+    hidden_layers:
+    - 256
+    - 256
+  control_dependent_noise: true
+  coriolis_matrix:
+    activation_fn: relu
+    hidden_layers:
+    - 256
+    - 256
+  data_state_scaling: true
+  diffusion_density_nn:
+    density_nn:
+      activation_fn: swish
+      hidden_layers:
+      - 64
+      - 64
+      init_value: 0.1
+    indx_noise_in:
+    - 0
+    - 1
+    - 8
+    - 9
+    - 10
+    indx_noise_out:
+    - 8
+    - 9
+    - 10
+    - 11
+    - 12
+    - 13
+    - 14
+    - 15
+    - 16
+    scaler_nn:
+      init_value: 0.01
+      type: scaler
+  gravity:
+    activation_fn: relu
+    hidden_layers:
+    - 256
+    - 256
+  horizon: 1
+  n_u: 6
+  n_x: 17
+  n_y: 17
+  noise_prior_params:
+  - 0.01
+  - 0.01
+  - 0.01
+  - 0.01
+  - 0.01
+  - 0.01
+  - 0.01
+  - 0.01
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1
+  num_particles: 1
+  num_substeps: 4
+  position_correction:
+    activation_fn: relu
+    hidden_layers:
+    - 256
+    - 256
+  residual_forces:
+    activation_fn: relu
+    hidden_layers:
+    - 256
+    - 256
+  sde_solver: simpletic_euler_maruyama
+  state_scaling:
+  - 1.390034794807434
+  - 0.9999956488609314
+  - 1.6098148822784424
+  - 2.697723865509033
+  - 1.334768533706665
+  - 1.3829312324523926
+  - 2.772362470626831
+  - 1.4413208961486816
+  - 3.348078966140747
+  - 6.61629581451416
+  - 10.0
+  - 10.0
+  - 10.0
+  - 10.0
+  - 10.0
+  - 10.0
+  - 10.0
+  stepsize: 0.008
+output_file: random_walker_v1
+ratio_seed: 10
+ratio_test: 0.1
+remove_test_data: true
+sde_loss:
+  data_stepsize: 0.008
+  default_weights: 1.0
+  density_loss:
+    ball_nsamples: 20
+    ball_radius: 0.1
+    learn_mucoeff:
+      type: constant
+    mu_coeff: 10.0
+  discount_pred: 0.1
+  horizon: 5
+  num_particles: 1
+  obs_weights:
+  - 1.390034794807434
+  - 0.9999956488609314
+  - 1.6098148822784424
+  - 2.697723865509033
+  - 1.334768533706665
+  - 1.3829312324523926
+  - 2.772362470626831
+  - 1.4413208961486816
+  - 3.348078966140747
+  - 6.61629581451416
+  - 10.0
+  - 10.0
+  - 10.0
+  - 10.0
+  - 10.0
+  - 10.0
+  - 10.0
+  pen_data: 100.0
+  pen_density_scvex: 1.0
+  pen_grad_density: 0.1
+  pen_scvex_mult: 1.0
+  seed: 425
+  special_parameters_pen:
+    density: 0
+    scaler: 0
+  stepsize: 0.008
+  warmup_diffusion: 5
+sde_optimizer:
+- name: scale_by_adam
+- name: linear_schedule
+  params:
+    end_value: -0.0001
+    init_value: -0.01
+    transition_steps: 100000
+  scheduler: true
+sde_training:
+  TestStopingCrit:
+    totalLoss: 1
+  TrainStopingCrit:
+    LossUnc: 0.1
+    totalLoss: 1.0
+  nepochs: 600
+  num_test_eval_per_epoch: 10
+  patience: 100
+  test_batch: 512
+  train_batch: 1024

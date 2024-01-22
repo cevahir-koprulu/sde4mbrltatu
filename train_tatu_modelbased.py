@@ -29,6 +29,7 @@ from models.sde_models.utils_for_d4rl_mujoco import get_formatted_dataset_for_ns
 DT_FOR_SDE = {
     'hopper': 0.008,
     'halfcheetah': 0.05,
+    'walker2d': 0.008,
 }
 
 def get_args():
@@ -115,6 +116,18 @@ def get_args():
             2: {'name': 'hc-v2-seed25', 'file': "random_hc_v3_hr-50_dt-0.010_sde.pkl"}, # Should be identical to 0
             # 0: {'name': 'simple4_hr-1', 'file': "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl"},
             # 1: {'name': 'simple6_hr-1', 'file': "hc_rand_v2_dsc0.1_simple6_hr-1_dt-0.05_sde.pkl"},
+        },
+        'halfcheetah-medium-replay-v2': {
+            0: {'name': 'hc-seed25', 'file': "medium_replay_hc_hr-50_dt-0.010_sde.pkl"},
+            1: {'name': 'hc-seed1', 'file': "medium_replay_hc_v2_hr-50_dt-0.010_sde.pkl"},
+            2: {'name': 'hc-seed2', 'file': "medium_replay_hc_vf_hr-10_dt-0.010_sde.pkl"},
+        },
+        'halfcheetah-medium-v2': {
+            0: {'name': 'hc-seed25', 'file': "medium_hc_hr-25_dt-0.010_sde.pkl"},
+            1: {'name': 'hc-seed1', 'file': "medium_hc_v2_hr-25_dt-0.010_sde.pkl"},
+        },
+        'walker2d-random-v2': {
+            0 : {'name': 'walker-seed25', 'file': "random_walker_hr-20_dt-0.002_sde.pkl"},
         }
     }
 
@@ -130,7 +143,7 @@ def static_get_environment_info(task_name):
     elif "halfcheetah" in task_name:
         return {'ep_len' : 1000, 'dt' : 0.05}
     elif "walker" in task_name:
-        return {'ep_len' : 1000, 'dt' : 0.01}
+        return {'ep_len' : 1000, 'dt' : 0.008}
     else:
         raise NotImplementedError
 
