@@ -25,7 +25,7 @@ def get_mlp_from_params(params, out_num, name):
                                             name = name)
 
 
-def extract_training_and_test_data(env_dataset_dir, ratio_test, ratio_seed, remove_test_data=False, min_horizon=5):
+def extract_training_and_test_data(env_dataset_dir, ratio_test, ratio_seed, remove_test_data=False, min_horizon=6):
     """Extract the training and testing data from the dataset
     Args:
         env_dataset_dir (str): The path to the dataset
