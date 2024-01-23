@@ -15,10 +15,10 @@ OBS_NAMES = ['rootz', 'rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh', 'fshin', 'f
              'Vrootx', 'Vrootz', 'Arooty', 'Abthigh', 'Abshin', 'Abfoot', 'Afthigh', 'Afshin', 'Affoot']
 ANGLE_NAMES = ['rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh', 'fshin', 'ffoot']
 CONTROL_NAMES = ["Cbthigh", "Cbshin", "Cbfoot", "Cfthigh", "Cfshin", "Cffoot"]
-TIMESTEP_ENV = 0.05 # skip_frames * xml_delta_t, time step in the data and in the environment
-NUM_SUBSTEPS = 5 # The number of substeps to use for the integration of the SDE
+TIMESTEP_ENV = 0.008 # skip_frames * xml_delta_t, time step in the data and in the environment
+NUM_SUBSTEPS = 4 # The number of substeps to use for the integration of the SDE
 
-class HalfCheetahSDE(ControlledSDE):
+class WalkerSDE(ControlledSDE):
     """ An SDE model for the HalfCheetah environment.
     """
     def __init__(self, params, name=None):
@@ -46,6 +46,11 @@ class HalfCheetahSDE(ControlledSDE):
     def prior_diffusion(self, x, u, extra_args=None):
         # Set the prior to a constant noise as defined in the yaml file
         return jnp.array(self.params['noise_prior_params'])
+
+    def projection_fn(self, x):
+        """ A function to project the state to the original state space
+        """
+        return jnp.concatenate((x[:8], jnp.clip(x[8:], -10, 10)), axis=-1)
 
     def compositional_drift(self, x, u, extra_args=None, return_aux=False):
         """ The drift function of the SDE.
@@ -78,7 +83,8 @@ class HalfCheetahSDE(ControlledSDE):
         # Compute the acceleration
         veldot = (tau + C  + fext + g)
         # jnp.dot(invM, tau + jnp.dot(C, vels/vel_scaling) - fext)
-        
+
+        # Position derivative correction
         pos_dot = self.PositionCorrectionNN(sin_cos, vels, u, z)
         
         # Vx is ignored cause there's no x in the state dynamics
@@ -142,7 +148,7 @@ class HalfCheetahSDE(ControlledSDE):
             self.PositionCorrectionNN = lambda sin_cos, vels, u, z_val: jnp.zeros(NUM_STATES-NUM_VELS) if 'simpletic' in self.params['sde_solver'] else vels[1:]
 
 # Load predictor function
-load_predictor_function = lambda *x, **y: generic_load_predictor_function(HalfCheetahSDE, *x, **y)
+load_predictor_function = lambda *x, **y: generic_load_predictor_function(WalkerSDE, *x, **y)
 
 # Train SDE
 model_class_params = {
@@ -156,7 +162,7 @@ model_class_params = {
     'TIMESTEP_ENV': TIMESTEP_ENV,
     'NUM_SUBSTEPS': NUM_SUBSTEPS,
 }
-train_sde = lambda *x, **y: generic_train_sde(HalfCheetahSDE, model_class_params, *x, **y)
+train_sde = lambda *x, **y: generic_train_sde(WalkerSDE, model_class_params, *x, **y)
 
 # Load learned diffusion
-load_learned_diffusion = lambda *x, **y: generic_load_learned_diffusion(HalfCheetahSDE, *x, **y)
+load_learned_diffusion = lambda *x, **y: generic_load_learned_diffusion(WalkerSDE, *x, **y)

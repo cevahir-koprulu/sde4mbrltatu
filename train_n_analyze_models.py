@@ -22,6 +22,9 @@ def train_model(cfg_name):
     elif 'hopper' in cfg_name:
         from models.sde_models.hopper_sde import train_sde
         train_sde(cfg_name)
+    elif 'walker' in cfg_name:
+        from models.sde_models.walker_sde import train_sde
+        train_sde(cfg_name)
 
 
 def analyze_model(dataset, model_names, hr, num_extra_steps, num_sample, num_traj = 1, use_train=False, seed=10, plot_xevol=False):
@@ -53,6 +56,8 @@ def analyze_model(dataset, model_names, hr, num_extra_steps, num_sample, num_tra
         from models.sde_models.halfcheetah_sde import load_predictor_function, OBS_NAMES, CONTROL_NAMES, TIMESTEP_ENV
     elif 'hopper' in dataset:
         from models.sde_models.hopper_sde import load_predictor_function, OBS_NAMES, CONTROL_NAMES, TIMESTEP_ENV
+    elif 'walker' in dataset:
+        from models.sde_models.walker_sde import load_predictor_function, OBS_NAMES, CONTROL_NAMES, TIMESTEP_ENV
     else:
         raise ValueError("The dataset {} is not supported".format(dataset))
 

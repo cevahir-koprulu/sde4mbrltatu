@@ -214,6 +214,7 @@ class FakeEnv_tatu:
         log_prob, dev = self._get_logprob(samples, ensemble_model_means, ensemble_model_vars)
 
         rewards, next_obs = samples[:,:1], samples[:,1:]
+        # rewards = self.config.single_step_reward(obs, act, next_obs).reshape(-1,1)
         terminals = self.config.termination_fn(obs, act, next_obs)
 
         batch_size = model_means.shape[0]
@@ -345,6 +346,8 @@ class FakeEnv_SDE_Trunc:
             from models.sde_models.hopper_sde import load_predictor_function, load_learned_diffusion
         elif self.env_name == "halfcheetah":
             from models.sde_models.halfcheetah_sde import load_predictor_function, load_learned_diffusion
+        elif self.env_name == "walker2d":
+            from models.sde_models.walker_sde import load_predictor_function, load_learned_diffusion
         # elif self.env_name == "walker2d":
         #     from sde4mbrlExamples.d4rl_mujoco.walker2d_sde import load_predictor_function, load_learned_diffusion
         # elif self.env_name == "ant":

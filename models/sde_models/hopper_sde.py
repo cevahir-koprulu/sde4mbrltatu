@@ -87,11 +87,14 @@ class HopperSDE(ControlledSDE):
         veldot = (tau + C  + fext + g)
         # jnp.dot(invM, tau + jnp.dot(C, vels/vel_scaling) - fext)
         
+        # Position derivative correction
+        pos_dot = self.PositionCorrectionNN(sin_cos, vels, u, z)
+        
         # Vx is ignored cause there's no x in the state dynamics
         if not return_aux:
-            return jnp.concatenate([vels[1:], veldot])
+            return jnp.concatenate([pos_dot, veldot])
         
-        return jnp.concatenate([vels[1:], veldot]), {}
+        return jnp.concatenate([pos_dot, veldot]), {}
     
     def init_residual_networks(self):
         """Initialize the residual and other neural networks.
@@ -130,6 +133,22 @@ class HopperSDE(ControlledSDE):
                 res = self.residual_nn(jnp.concatenate([sin_cos, vels, z_val]))
             return res
         self.ExternalForcesNN = ExternalForcesNN
+
+        # Add pos prediction correction term
+        if 'position_correction' in self.params:
+            self.position_correction_nn = get_mlp_from_params(self.params['position_correction'], NUM_STATES-NUM_VELS, 'pos_correction')
+            def PositionCorrectionNN(sin_cos, vels, u, z_val):
+                args_val = vels
+                if self.params['position_correction'].get('include_z', False):
+                    args_val = jnp.concatenate([args_val, z_val])
+                if self.params['position_correction'].get('include_control', False):
+                    args_val = jnp.concatenate([args_val, u])
+                if self.params['position_correction'].get('include_sin_cos', False):
+                    args_val = jnp.concatenate([args_val, sin_cos])
+                return self.position_correction_nn(args_val)
+            self.PositionCorrectionNN = PositionCorrectionNN
+        else:
+            self.PositionCorrectionNN = lambda sin_cos, vels, u, z_val: jnp.zeros(NUM_STATES-NUM_VELS) if 'simpletic' in self.params['sde_solver'] else vels[1:]
 
 # Load predictor function
 load_predictor_function = lambda *x, **y: generic_load_predictor_function(HopperSDE, *x, **y)
