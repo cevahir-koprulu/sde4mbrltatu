@@ -99,6 +99,7 @@ def get_args():
             0: {'name': 'hop-seed25',  'file': "random_hop_hr-20_dt-0.002_sde.pkl"},
             1: {'name': 'hop-seed1',  'file': "random_hop_v3_hr-20_dt-0.002_sde.pkl"},
             2: {'name': 'hop-seed1_v2', 'file': "random_hop_v4_hr-20_dt-0.002_sde.pkl"},
+            3: {'name': 'hop-seed1_vf_2', 'file': "random_hop_vf_hr-20_dt-0.002_sde.pkl"},
             # 2: {'name': 'simple5_hr-1', 'file': "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"},
         },
         'hopper-medium-v2': {
@@ -106,8 +107,14 @@ def get_args():
             1: {'name': 'hop-seed25',  'file': "medium_hop_v13_hr-20_dt-0.002_sde.pkl"},
             # 2: {'name': 'hop-seed14',  'file': "medium_hop_v14_hr-20_dt-0.002_sde.pkl"},
         },
+        'hopper-medium-replay-v2':{
+            0: {'name': 'hop-seed25',  'file': "medium_replay_hop_hr-20_dt-0.002_sde.pkl"},
+        },
         'hopper-medium-expert-v2': {
             0: {'name': 'hop-seed25',  'file': "medium_expert_hop_hr-20_dt-0.002_sde.pkl"},
+        },
+        'hopper-expert-v2': {
+            0: {'name': 'hop-seed25',  'file': "expert_hop_hr-20_dt-0.002_sde.pkl"},
         },
         'halfcheetah-random-v2': {
             # python train_tatu_modelbased.py --task halfcheetah-random-v2 --algo-name tatu_mopo_sde --rollout-length 15 --pessimism-coef 0.1 --actor-lr 0.0003 --critic-lr 0.0003 --seed 1 --reward-penalty-coef 0.001 --use_diffusion --sde_model_id 0 --real-ratio 0.05 --sde_num_particles 1
