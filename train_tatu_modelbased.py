@@ -89,8 +89,11 @@ def get_args():
 
     sde_model_list = {
         'halfcheetah-medium-expert-v2': {
-            # 0 : 'hc_me_v32__'
-            0 : 'hc_me_v31'
+            0 : 'hc_me_v31',
+            1 : 'hc_me_v30',
+            2: 'hc_me_v32__'
+        },
+        'halfcheetah-random-v2': {
         },
     }
     args.sde_model_name = sde_model_list[args.task][args.sde_model_id]

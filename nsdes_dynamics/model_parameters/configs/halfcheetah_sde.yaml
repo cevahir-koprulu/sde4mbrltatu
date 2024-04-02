@@ -138,16 +138,6 @@ loss_definitions:
     
     # How is the covariance used in te likehood computed
     discount_factor: 0.9
-    # likehood:
-    #   use_data_scaling: False
-    #   # The type of the loss to use. fixed_cov does not approximate the 
-    #   # kernel of the SDE and use a fixed covariance matrix. 
-    #   # gauss_approx use a gaussian approximation of the kernel of the SDE
-    #   # to have a proper loss function.
-    #   nll_type: gauss_approx # fixed_cov or gauss_approx
-
-    #   # The discount factor to use for the loss
-    #   discount_factor: 0.9
 
 model_optimizer:
   - name: scale_by_adam

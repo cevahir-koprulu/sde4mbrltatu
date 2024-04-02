@@ -157,7 +157,8 @@ def train(args=get_args()):
             sde_mean_sample=args.sde_mean_sample,
             rollout_batch_size=args.rollout_batch_size,
             seed_init = args.seed,
-            model_name=args.task
+            task_name=args.task,
+            ckpt_step = args.ckpt_step
         )
 
     # create policy

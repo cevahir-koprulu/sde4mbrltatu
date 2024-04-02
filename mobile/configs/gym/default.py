@@ -38,7 +38,8 @@ default_args = {
 
     # Some sde parameters
     "sde_use_gpu" : True,
-    "sde_jax_gpu_mem_frac" : 0.9,
+    "sde_jax_gpu_mem_frac" : 0.5,
     "sde_num_particles" : 10,
-    "sde_mean_sample" : False
+    "sde_mean_sample" : False,
+    "ckpt_step" : -2,
 }

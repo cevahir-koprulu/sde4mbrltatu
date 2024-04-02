@@ -1,15 +1,13 @@
 import numpy as np
 import torch
-# import torch.nn as nn
 
-from typing import Callable, List, Tuple, Dict, Optional
-from functools import partial
+from typing import Callable, Tuple, Dict
 
 
 class SDEDynamics:
     def __init__(
         self,
-        model_path: str,
+        model_name: str,
         terminal_fn: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray],
         reward_fn: Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray],
         dt: float = 0.008,
@@ -22,7 +20,8 @@ class SDEDynamics:
         seed_init: int = 10,
         penalty_coef: float = 0.0,
         uncertainty_mode: str = "aleatoric", # Or diffusion
-        model_name: str = "hopper",
+        task_name: str = "hopper-medium-expert-v2",
+        ckpt_step: int = -2
     ) -> None:
         self.terminal_fn = terminal_fn
         self.reward_fn = reward_fn
@@ -34,66 +33,100 @@ class SDEDynamics:
         self.dt = dt
         self._penalty_coef = penalty_coef
         self._uncertainty_mode = uncertainty_mode
-        self.model_name = model_name
-        self.init_model(model_path, rollout_batch_size, seed_init) 
+        self.task_name = task_name
+        self.ckpt_step = ckpt_step
+        self.init_model(model_name, rollout_batch_size, seed_init) 
     
-    def init_model(self, model_path: str, rollout_batch_size: int, seed_init: int) -> None:
+    def init_model(
+        self,
+        model_name: str,
+        rollout_batch_size: int,
+        seed_init: int
+    ) -> None:
         """ Initialize the sde model and define the functions for predicting and so on
         """
-        if "hopper" in self.model_name:
-            from models.sde_models.hopper_sde import load_predictor_function
-        elif "halfcheetah" in self.model_name:
-            from models.sde_models.halfcheetah_sde import load_predictor_function
-        elif "walker" in self.model_name:
-            from models.sde_models.walker_sde import load_predictor_function
-        else:
-            raise NotImplementedError("env_name {} not implemented".format(self.env_name))
-        
-        import jax
+        # Set the GPU memory fraction used by JAX
         import os
+        jax_gpu_mem_frac = self.model.get('jax_gpu_mem_frac', "-1")
+        _jax_gpu_mem_frac = float(jax_gpu_mem_frac)
+        if _jax_gpu_mem_frac > 0:
+            os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = str(jax_gpu_mem_frac)
 
-        if self.sde_use_gpu:
-            os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = str(self.sde_jax_gpu_mem_frac)
-            backend = 'gpu'
-        else:
-            backend = 'cpu'
+        # Import jax after setting the GPU memory fraction
+        import jax
+        # Import the function to load the SDE model sampler
+        from nsdes_dynamics.load_learned_nsdes import \
+            load_system_sampler_from_model_name
 
-        # Random number generator
-        self.next_rng = jax.random.PRNGKey(seed_init)
+        # Load the sampler -> This function also returns the diffusion term
+        horizon_pred = 1
+        sampler_fn = load_system_sampler_from_model_name(
+            self.task_name,
+            model_name = model_name,
+            stepsize = self.dt,
+            horizon = horizon_pred,
+            num_particles = self.sde_num_particles,
+            step = self.ckpt_step,
+            integration_method=None
+        )
+        sampler_fn_lcb = load_system_sampler_from_model_name(
+            self.task_name,
+            model_name = model_name,
+            stepsize = self.dt,
+            horizon = horizon_pred,
+            num_particles = self.sde_num_particles * self.num_particles_lcb,
+            step = self.ckpt_step,
+            integration_method=None
+        )
 
-        # Find the file
-        model_path = os.path.expanduser(model_path)
+        # Backend for compilation
+        use_gpu = self.sde_use_gpu
+        init_seed = seed_init
+        backend = 'cpu' if not use_gpu else 'gpu'
+        # Random number generator to propagate through the calls of predict
+        self.next_rng = jax.random.PRNGKey(init_seed)
 
-        # Load the SDE model from the file
-        my_step_sde = load_predictor_function(model_path, prior_dist=False, nonoise=False,
-                                        modified_params ={
-                                            'horizon' : 1, 
-                                            'num_particles' : self.sde_num_particles,
-                                            'stepsize': self.dt,
-                                            }, 
-                                        return_control=False, 
-                                        return_time_steps=False)
-        
-        step_lcb_compute = load_predictor_function(model_path, prior_dist=False, nonoise=False,
-                                        modified_params ={
-                                            'horizon' : 1, 
-                                            'num_particles' : self.sde_num_particles * self.num_particles_lcb,
-                                            'stepsize': self.dt,
-                                            }, 
-                                        return_control=False, 
-                                        return_time_steps=False)
-
-        def _my_pred_fn(x, u, _rng, __step_fn=my_step_sde):
-            """ Return the predicted next state
+        # Define the prediction function
+        def _my_pred_fn(
+            x : jax.numpy.ndarray,
+            u : jax.numpy.ndarray,
+            rng : jax.random.PRNGKey,
+            _sampler_fn = sampler_fn,
+        ):
             """
+            Return the predicted next state and the diffusion values
+            at the current state.
+            
+            Returns:
+                pred_states : jax.numpy.ndarray [num_particles, batch_size, obs_dim]
+                The predicted states of the system.
+                diffusion_value : jax.numpy.ndarray [num_particles, batch_size, obs_dim]
+                The diffusion values at the current state and control.
+            """
+            # Some checks
             assert len(x.shape) == len(u.shape) == 2
-            print(x.shape, u.shape)
-            next_rng, _rng = jax.random.split(_rng, 2)
-            _rng = jax.random.split(_rng, x.shape[0])
-            pred_state = jax.vmap(__step_fn, in_axes=(0, 0, 0))(x, u, _rng)[:, :, 1, :]
+
+            # Split the rng to match the input dimensions
+            next_rng, rng = jax.random.split(rng, 2)
+            rng = jax.random.split(rng, x.shape[0])
+
+            # Expand the dimension of u with horizon_pred
+            u = jax.numpy.expand_dims(u, axis=1)
+            u = jax.numpy.repeat(u, horizon_pred, axis=1)
+
+            # Define the vmap sampler function
+            _temp_sampler =  lambda _x, _u, _rng: \
+                _sampler_fn(state=_x, control=_u, rng_key=_rng)
+            pred_states, _ = \
+                jax.vmap(_temp_sampler)(x, u, rng)
+            
+            # Extract the next state and diffusion from the output trajectory
+            pred_states = pred_states[:, :, 1, :]
             # transpose the output to be [num_particles, batch_size, obs_dim]
-            pred_state = jax.lax.transpose(pred_state, (1, 0, 2))
-            return pred_state, next_rng
+            pred_states = jax.lax.transpose(pred_states, (1, 0, 2))
+
+            return pred_states, next_rng
+
         self._predict = jax.jit(_my_pred_fn, backend=backend)
 
         # AUgmenting the predict function to handle the case where the batch size is less than rollout_batch_size
@@ -113,8 +146,9 @@ class SDEDynamics:
         
         # self.predict = jax.jit(_my_pred_fn, backend=backend)
         self.predict = augmented_pred_fn
-        self.predict_for_lcb = jax.jit(lambda x, u, rng: _my_pred_fn(x, u, rng, step_lcb_compute), backend=backend)
-
+        self.predict_for_lcb = \
+            jax.jit(lambda x, u, rng: \
+                _my_pred_fn(x, u, rng, sampler_fn_lcb), backend=backend)
 
     @ torch.no_grad()
     def step(

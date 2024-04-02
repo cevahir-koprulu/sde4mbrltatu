@@ -1,8 +1,8 @@
 models/sde_models/learned_sde_models/
 models/sde_models/training_dataset/
+nsdes_dynamics/training_datasets/
 log/
 __pycache__/
-**/
 
 **/__pycache__
 .idea/
