@@ -601,6 +601,7 @@ class BNN:
                 kwargs["weight_decay"] = None if kwargs["weight_decay"] == "None" else float(kwargs["weight_decay"])
                 kwargs["activation"] = None if kwargs["activation"] == "None" else kwargs["activation"][1:-1]
                 kwargs["ensemble_size"] = int(kwargs["ensemble_size"])
+                print('BNN mode kwargs\n', kwargs)
                 structure.append(FC(**kwargs))
         self.layers = structure
         if self.separate_mean_var:
@@ -615,6 +616,7 @@ class BNN:
                     kwargs["weight_decay"] = None if kwargs["weight_decay"] == "None" else float(kwargs["weight_decay"])
                     kwargs["activation"] = None if kwargs["activation"] == "None" else kwargs["activation"][1:-1]
                     kwargs["ensemble_size"] = int(kwargs["ensemble_size"])
+                    print('BNN mean/var mode kwargs\n', kwargs)
                     structure.append(FC(**kwargs))
             self.var_layers = structure
 

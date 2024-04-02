@@ -69,12 +69,18 @@ class Trainer_modelbsed:
             eval_info = self._evaluate()
             ep_reward_mean, ep_reward_std = np.mean(eval_info["eval/episode_reward"]), np.std(eval_info["eval/episode_reward"])
             ep_length_mean, ep_length_std = np.mean(eval_info["eval/episode_length"]), np.std(eval_info["eval/episode_length"])
+            ep_reward_max = np.max(eval_info["eval/episode_reward"])
+            ep_reward_min = np.min(eval_info["eval/episode_reward"])
             # Normalized score mean and std
             ep_reward_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
             ep_reward_std_normal = self.eval_env.get_normalized_score(ep_reward_std)*100
+            ep_reward_max_normal = self.eval_env.get_normalized_score(ep_reward_max)*100
+            ep_reward_min_normal = self.eval_env.get_normalized_score(ep_reward_min)*100
             self.logger.record("eval/episode_reward", ep_reward_mean, num_timesteps, printed=False)
             self.logger.record("eval/episode_length", ep_length_mean, num_timesteps, printed=False)
             self.logger.record("eval/episode_reward_normal", ep_reward_mean_normal, num_timesteps, printed=False)
+            self.logger.record("eval/max_episode_reward_normal", ep_reward_max_normal, num_timesteps, printed=False)
+            self.logger.record("eval/min_episode_reward_normal", ep_reward_min_normal, num_timesteps, printed=False)
             self.logger.print(f"Epoch #{e}: episode_reward: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}, episode_length: {ep_length_mean:.3f} ± {ep_length_std:.3f} rollout_info: {rollout_info}")
             self.logger.print(f"Epoch #{e}: episode_reward_normal: {ep_reward_mean_normal:.1f} ± {ep_reward_std_normal:.1f}")
 

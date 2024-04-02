@@ -24,13 +24,11 @@ from trainer import Trainer_modelbsed
 
 from logger import Logger
 
-from models.sde_models.utils_for_d4rl_mujoco import get_formatted_dataset_for_nsde_training
+from nsdes_dynamics.utils_for_d4rl_mujoco import (
+    get_formatted_dataset_for_nsde_training,
+    get_environment_infos_from_name
+)
 
-DT_FOR_SDE = {
-    'hopper': 0.008,
-    'halfcheetah': 0.05,
-    'walker2d': 0.008,
-}
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -69,90 +67,34 @@ def get_args():
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--logdir", type=str, default="log")
     parser.add_argument("--log-freq", type=int, default=1000)
-    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--device", type=str,
+                        default="cuda" if torch.cuda.is_available() else "cpu"
+    )
 
     parser.add_argument("--critic_num", type=int, default=2)
 
     # SDE arguments
-    parser.add_argument("--use_diffusion", default=False, action='store_true', help="To penalize uncertainty")
+    parser.add_argument(
+        "--use_diffusion", default=False,
+        action='store_true', help="To penalize uncertainty"
+    )
     parser.add_argument("--sde_model_id", type=int, default=0)
+    parser.add_argument("--cpkt_step", type=int, default=-2)
     parser.add_argument("--sde_num_particles", type=int, default=5)
     parser.add_argument("--use_gpu", type=bool, default=True)
-    parser.add_argument("--jax_gpu_mem_frac", type=str, default='0.25')
+    parser.add_argument("--jax_gpu_mem_frac", type=str, default='0.5')
     parser.add_argument("--prob_init_obs", type=float, default=0)
 
     args= parser.parse_args()
 
-    # This may be useless if JAX is already imported before this line.
-    # Better specified it in the command line argument XLA_PYTHON_CLIENT_MEM_FRACTION=0.25 python train_tatu_modelbased.py xxxx
-    os.environ['XLA_PYTHON_CLIENT_MEM_FRACTION'] = str(args.jax_gpu_mem_frac)
-
-    # sde_model_list = {
-    #     'hopper-random-v2':["hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl", "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"],
-    #     'halfcheetah-random-v2': ["random_hc_hr-5_dt-0.010_e40_sde.pkl", "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl", "hc_rand_v2_dsc0.1_simple6_hr-1_dt-0.05_sde.pkl"]
-    # }
-
     sde_model_list = {
-        'hopper-random-v2': {
-            # 0: {'name': 'simple_hr-2',  'file': "hop_rand_v2_dsc0.1_simple_hr-2_dt-0.008_sde.pkl"},
-            # 1: {'name': 'simple5_hr-1', 'file': "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"},
-            0: {'name': 'hop-seed25',  'file': "random_hop_hr-20_dt-0.002_sde.pkl"},
-            1: {'name': 'hop-seed1',  'file': "random_hop_v3_hr-20_dt-0.002_sde.pkl"},
-            2: {'name': 'hop-seed1_v2', 'file': "random_hop_v4_hr-20_dt-0.002_sde.pkl"},
-            3: {'name': 'hop-seed1_vf_2', 'file': "random_hop_vf_hr-20_dt-0.002_sde.pkl"},
-            # 2: {'name': 'simple5_hr-1', 'file': "hop_rand_v2_dsc0.1_simple5_hr-1_dt-0.008_sde.pkl"},
+        'halfcheetah-medium-expert-v2': {
+            # 0 : 'hc_me_v32__'
+            0 : 'hc_me_v31'
         },
-        'hopper-medium-v2': {
-            0: {'name': 'hop-seed25',  'file': "medium_hop_v12_hr-20_dt-0.002_sde.pkl"},
-            1: {'name': 'hop-seed25',  'file': "medium_hop_v13_hr-20_dt-0.002_sde.pkl"},
-            # 2: {'name': 'hop-seed14',  'file': "medium_hop_v14_hr-20_dt-0.002_sde.pkl"},
-        },
-        'hopper-medium-replay-v2':{
-            0: {'name': 'hop-seed25',  'file': "medium_replay_hop_hr-20_dt-0.002_sde.pkl"},
-        },
-        'hopper-medium-expert-v2': {
-            0: {'name': 'hop-seed25',  'file': "medium_expert_hop_hr-20_dt-0.002_sde.pkl"},
-        },
-        'hopper-expert-v2': {
-            0: {'name': 'hop-seed25',  'file': "expert_hop_hr-20_dt-0.002_sde.pkl"},
-        },
-        'halfcheetah-random-v2': {
-            # python train_tatu_modelbased.py --task halfcheetah-random-v2 --algo-name tatu_mopo_sde --rollout-length 15 --pessimism-coef 0.1 --actor-lr 0.0003 --critic-lr 0.0003 --seed 1 --reward-penalty-coef 0.001 --use_diffusion --sde_model_id 0 --real-ratio 0.05 --sde_num_particles 1
-            0: {'name': 'hc-seed25', 'file': "random_hc_v5_hr-50_dt-0.010_sde.pkl"}, # The best so far?
-            1: {'name': 'hc-seed1', 'file': "random_hc_hr-50_dt-0.010_sde.pkl"}, # Most tested
-            2: {'name': 'hc-v2-seed25', 'file': "random_hc_v3_hr-50_dt-0.010_sde.pkl"}, # Should be identical to 0
-            # 0: {'name': 'simple4_hr-1', 'file': "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl"},
-            # 1: {'name': 'simple6_hr-1', 'file': "hc_rand_v2_dsc0.1_simple6_hr-1_dt-0.05_sde.pkl"},
-        },
-        'halfcheetah-medium-replay-v2': {
-            0: {'name': 'hc-seed25', 'file': "medium_replay_hc_hr-50_dt-0.010_sde.pkl"},
-            1: {'name': 'hc-seed1', 'file': "medium_replay_hc_v2_hr-50_dt-0.010_sde.pkl"},
-            2: {'name': 'hc-seed2', 'file': "medium_replay_hc_vf_hr-10_dt-0.010_sde.pkl"},
-        },
-        'halfcheetah-medium-v2': {
-            0: {'name': 'hc-seed25', 'file': "medium_hc_hr-25_dt-0.010_sde.pkl"},
-            1: {'name': 'hc-seed1', 'file': "medium_hc_v2_hr-25_dt-0.010_sde.pkl"},
-        },
-        'walker2d-random-v2': {
-            0 : {'name': 'walker-seed25', 'file': "random_walker_hr-20_dt-0.002_sde.pkl"},
-        }
     }
-
-
-    args.sde_model_path = sde_model_list[args.task][args.sde_model_id]['file']
-    args.sde_model_name = sde_model_list[args.task][args.sde_model_id]['name']
-
+    args.sde_model_name = sde_model_list[args.task][args.sde_model_id]
     return args
-
-def static_get_environment_info(task_name):
-    if "hopper" in task_name:
-        return {'ep_len' : 1000, 'dt' : 0.008}
-    elif "halfcheetah" in task_name:
-        return {'ep_len' : 1000, 'dt' : 0.05}
-    elif "walker" in task_name:
-        return {'ep_len' : 1000, 'dt' : 0.008}
-    else:
-        raise NotImplementedError
 
 def train(args=get_args()):
 
@@ -167,7 +109,7 @@ def train(args=get_args()):
     observ_init_dataset = np.array([_data['y'][0,:] for _data in full_data_set])
 
     # get environment info
-    env_info = static_get_environment_info(args.task)
+    env_info = get_environment_infos_from_name(args.task)
 
     # seed
     random.seed(args.seed)
@@ -240,13 +182,16 @@ def train(args=get_args()):
         )
     else:
         dynamics_model = {
-            'model_path': args.sde_model_path,
+            'model_name': args.sde_model_name,
             'use_gpu': args.use_gpu,
             'num_particles': args.sde_num_particles,
             'jax_gpu_mem_frac': args.jax_gpu_mem_frac,
-            'dt': DT_FOR_SDE[args.task.split('-')[0]],
+            'stepsize': env_info['stepsize'],
             'seed' : args.seed,
             'rollout_batch_size': args.rollout_batch_size,
+            "env_name": args.task,
+            "ckpt_step": args.cpkt_step,
+            "rollout_length": args.rollout_length,
         }
 
     # create buffer
@@ -258,7 +203,8 @@ def train(args=get_args()):
         action_dtype=np.float32
     )
     offline_buffer.load_dataset(dataset, observ_init_dataset)
-    est_rollout_length = int (args.rollout_length * (1 - args.prob_init_obs) + args.prob_init_obs * env_info['ep_len'])
+    est_rollout_length = int (args.rollout_length * (1 - args.prob_init_obs) + 
+                              args.prob_init_obs * env_info['max_episode_steps'])
     model_buffer = ReplayBuffer(
         buffer_size=10*args.rollout_batch_size* est_rollout_length * args.model_retain_epochs,
         obs_shape=args.obs_shape,
@@ -302,7 +248,7 @@ def train(args=get_args()):
             use_diffusion = 'sde' in args.algo_name and args.use_diffusion,
             env_name=task,
             prob_init_obs = args.prob_init_obs,
-            max_steps_per_env = env_info['ep_len']
+            max_steps_per_env = env_info['max_episode_steps']
     )
     elif args.algo_name == "tatu_combo" or 'sde' in args.algo_name:
         cql_policy = CQLPolicy(
@@ -336,7 +282,7 @@ def train(args=get_args()):
             use_diffusion = 'sde' in args.algo_name and args.use_diffusion,
             env_name=task,
             prob_init_obs = args.prob_init_obs,
-            max_steps_per_env = env_info['ep_len']
+            max_steps_per_env = env_info['max_episode_steps']
     )
     else:
         raise Exception("Invalid algo name")

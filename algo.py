@@ -134,8 +134,7 @@ class TATU_model_based():
                 self.static_fns,
                 penalty_coeff=reward_penalty_coef,
                 penalty_learned_var=True,
-                use_diffusion=use_diffusion,
-                env_name=env_name,
+                use_diffusion=use_diffusion
             )
         self.offline_buffer = offline_buffer
         self.model_buffer = model_buffer

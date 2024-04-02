@@ -1,0 +1,308 @@
+dad_optimizer:
+- name: scale_by_adam
+- name: linear_schedule
+  params:
+    end_value: -0.001
+    init_value: -0.001
+    transition_steps: 100000
+  scheduler: true
+dataset:
+  name: halfcheetah-medium-expert-v2
+  normalize_data: false
+  seed: 10
+  test_ratio: 0.2
+env_name: halfcheetah-medium-expert-v2
+extra_infos:
+  is_diff_distance_aware: true
+  max_fields:
+    Abfoot: 3.8244566917419434
+    Abshin: 7.717140197753906
+    Abthigh: 7.679602146148682
+    Affoot: 5.188799858093262
+    Afshin: 5.158993721008301
+    Afthigh: 9.795654296875
+    Arooty: 1.5042203664779663
+    Cbfoot: 0.8516010046005249
+    Cbshin: 0.712867796421051
+    Cbthigh: 0.8474270105361938
+    Cffoot: 0.6148982644081116
+    Cfshin: 0.6846250891685486
+    Cfthigh: 0.6557120680809021
+    Vrootx: 8.115405082702637
+    Vrootz: 0.540097713470459
+    bfoot: 0.31994539499282837
+    bshin: 0.3576781749725342
+    bthigh: 0.3960570693016052
+    ffoot: 0.23610819876194
+    fshin: 0.26359736919403076
+    fthigh: 0.48287898302078247
+    rooty: 0.12009979784488678
+    rootz: 0.06377048045396805
+  names_controls:
+  - Cbthigh
+  - Cbshin
+  - Cbfoot
+  - Cfthigh
+  - Cfshin
+  - Cffoot
+  names_positions:
+  - rootz
+  - rooty
+  - bthigh
+  - bshin
+  - bfoot
+  - fthigh
+  - fshin
+  - ffoot
+  names_states:
+  - rootz
+  - rooty
+  - bthigh
+  - bshin
+  - bfoot
+  - fthigh
+  - fshin
+  - ffoot
+  - Vrootx
+  - Vrootz
+  - Arooty
+  - Abthigh
+  - Abshin
+  - Abfoot
+  - Afthigh
+  - Afshin
+  - Affoot
+loss_definitions:
+  loss_diffusion:
+    cvx_coeff_config:
+      cvx_coeff_params:
+        coef_init: 100.0
+        is_constant: true
+      is_cvx_coeff_learned: true
+    diff_loss_config:
+      ball_num_samples: 20
+      ball_radius: 0.2
+      cvx_coeff_loss_type: quad_inv
+      min_grad_density: 0.001
+      weight_diff_loss:
+        cvx_coeff_loss: 100
+        density_set_one: 1
+        density_value: 0.001
+        gradient_loss: 0
+        local_convex_loss: 1
+      weight_min_grad_density: 1000.0
+  loss_reg:
+    default_mean: 0
+    default_scale: 0
+    specials:
+      actuator_forces:
+        mean: 0.0
+        scale: 1
+      coriolis_forces:
+        mean: 0.0
+        scale: 1
+      gravity_forces:
+        mean: 0.0
+        scale: 1
+      position_correction:
+        mean: 0.0
+        scale: 1
+      residual_forces:
+        mean: 0.0
+        scale: 1
+  loss_traj_train:
+    likehood:
+      discount_factor: 0.9
+      nll_type: gauss_approx
+      noise_scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      use_data_scaling: false
+    num_substeps: 1
+    sampling:
+      action_sampling_strategy:
+        default: first
+      horizon: 1
+      integration_method: euler_maruyama
+      num_samples: 1
+      stepsize_range:
+      - 1
+      - 1
+    validation_sampling:
+      action_sampling_strategy:
+        default: first
+      horizon: 5
+      stepsize_range:
+      - 1
+      - 1
+  loss_weights:
+    DataLoss: 1.0
+    DiffLoss: 0.01
+    RegLoss: 0.0001
+    VarBoundLoss: 0.001
+model:
+  diffusion_term:
+    args:
+      _num_controls: 6
+      _num_states: 17
+      default_feature_values: []
+      density_free_nn_params:
+        activation_fn: swish
+        initial_value_range: 0.001
+        layers_archictecture:
+        - 256
+        - 256
+      density_nn_params:
+        activation_fn: swish
+        initial_value_range: 0.1
+        layers_archictecture:
+        - 64
+        - 64
+      diffusion_is_control_dependent: true
+      feature_density_scaling:
+      - 0.06377048045396805
+      - 0.12009979784488678
+      - 0.3960570693016052
+      - 0.3576781749725342
+      - 0.31994539499282837
+      - 0.48287898302078247
+      - 0.26359736919403076
+      - 0.23610819876194
+      - 8.115405082702637
+      - 0.540097713470459
+      - 1.5042203664779663
+      - 7.679602146148682
+      - 7.717140197753906
+      - 3.8244566917419434
+      - 9.795654296875
+      - 5.158993721008301
+      - 5.188799858093262
+      - 0.8474270105361938
+      - 0.712867796421051
+      - 0.8516010046005249
+      - 0.6557120680809021
+      - 0.6846250891685486
+      - 0.6148982644081116
+      feature_parameters_to_use: []
+      upper_bound_diffusion:
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 1.0
+      - 1
+      - 1
+      - 1
+      - 1
+      - 1
+      - 1
+      - 1
+      - 1
+    model_name: BasicDistanceAwareDiffusionTerm
+  drift_term:
+    args:
+      _names_angles:
+      - rooty
+      - bthigh
+      - bshin
+      - bfoot
+      - fthigh
+      - fshin
+      - ffoot
+      _names_controls:
+      - Cbthigh
+      - Cbshin
+      - Cbfoot
+      - Cfthigh
+      - Cfshin
+      - Cffoot
+      _names_positions:
+      - rootz
+      - rooty
+      - bthigh
+      - bshin
+      - bfoot
+      - fthigh
+      - fshin
+      - ffoot
+      _names_states:
+      - rootz
+      - rooty
+      - bthigh
+      - bshin
+      - bfoot
+      - fthigh
+      - fshin
+      - ffoot
+      - Vrootx
+      - Vrootz
+      - Arooty
+      - Abthigh
+      - Abshin
+      - Abfoot
+      - Afthigh
+      - Afshin
+      - Affoot
+      actuator_forces_nn: {}
+      coriolis_forces_nn: {}
+      gravity_forces_nn: {}
+      include_pos_to_vel_relation: true
+      mass_matrix_nn: {}
+      residual_forces_nn:
+        args:
+          activation_fn: swish
+          initial_value_range: 0.001
+          layers_archictecture:
+          - 200
+          - 200
+          - 200
+        features:
+        - rootz
+        - cos_angles
+        - sin_angles
+        - velocities
+        - controls
+    model_name: RBD_Drift
+model_optimizer:
+- name: scale_by_adam
+- name: linear_schedule
+  params:
+    end_value: -0.001
+    init_value: -0.01
+    transition_steps: 100000
+  scheduler: true
+model_training:
+  dad_batch_size: 128
+  freq_update_dad: 1
+  num_gradient_steps: 300000
+  save_freq: 4000
+  test_batch: 128
+  test_freq: 2000
+  test_num_steps: 80
+  train_batch: 256
+seed: 100
+track_n_checkpoints:
+  async_exec: false
+  max_to_keep: 5
+  metrics:
+    Test/StateLoss: 1.0
+    Train/TotalLoss: 1.0

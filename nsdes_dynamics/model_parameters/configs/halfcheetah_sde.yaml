@@ -1,0 +1,197 @@
+# Example of configuration file used to train a neural sde model
+# for the system dynamics.
+
+dataset:
+  name: halfcheetah-medium-expert-v2
+  test_ratio: 0.2
+  seed: 10 # For reproducibility of the split action.
+  # Specify if we normalize input data before feeding it to the NNs 
+  normalize_data: True
+
+model:
+  # Let's add sin and cos of the angles as inputs to the NNs
+  drift_term:
+    # model_name: RBD_Drift
+    # args:
+    #   include_pos_to_vel_relation: True
+    #   residual_forces_nn:
+    #     # features: ["positions", "velocities", "controls"]
+    #     features: ["rootz", "cos_angles", "sin_angles", "velocities", "controls"]
+    #     args:
+    #       activation_fn: swish
+    #       layers_archictecture: [200, 200, 200]
+    #       initial_value_range: 0.001
+
+    model_name: RBD_Drift
+    args:
+      residual_forces_nn:
+        # features: ["positions", "velocities", "controls"]
+        features: ["rootz", "cos_angles", "sin_angles", "velocities", "controls"]
+        # features: ["rootz", "cos_angles", "sin_angles", "velocities"]
+        args:
+          activation_fn: swish
+          layers_archictecture: [64, 64, 64]
+          initial_value_range: 0.001
+      coriolis_forces_nn:
+        features: ["rootz", "cos_angles", "sin_angles", "velocities"]
+        args:
+          activation_fn: swish
+          layers_archictecture: [64, 64, 64]
+          initial_value_range: 0.001
+      # gravity_forces_nn:
+      #   features: ["rootz", "cos_angles", "sin_angles"]
+      #   args:
+      #     activation_fn: swish
+      #     layers_archictecture: [64, 64]
+      #     initial_value_range: 0.001
+      actuator_forces_nn:
+        features: ["rootz", "cos_angles", "sin_angles", "velocities"]
+        args:
+          activation_fn: swish
+          layers_archictecture: [64, 64, 64]
+          initial_value_range: 0.001
+
+  diffusion_term:
+    # Name of the model to instantiate: Check common_diffusion_models folder
+    model_name: BasicDistanceAwareDiffusionTerm
+    # If the constructor has some mandatory parameters, they can be passed here
+    args:
+      # This assume the right order for name_states
+      # TODO: Make this be a dictionary with value per state
+      # upper_bound_diffusion : [0.1,0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
+      # 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+      upper_bound_diffusion : [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
+      1.0, 1, 1, 1, 1, 1, 1, 1, 1]
+      diffusion_is_control_dependent: True
+      # Define the density NN
+      density_nn_params: 
+        activation_fn: swish
+        layers_archictecture: [64, 64]
+        initial_value_range: 0.1
+      # Noise scale learned by the model
+      density_free_nn_params: 
+        activation_fn: swish
+        layers_archictecture: [256, 256]
+        initial_value_range: 0.001
+
+# Definitions for the loss function
+loss_definitions:
+
+  # Relative importance of the different loss terms - data, reg and diff
+  loss_weights:
+    RegLoss: 0.001 # 0.0001
+    DataLoss: 1.0
+    VarBoundLoss: 0.001
+    # VarBoundLoss: 10
+
+  # Regularization loss definition
+  loss_reg: # Assume Gaussian prior distribution
+    default_mean: 0
+    default_scale: 0 # NO REGULARIZATION except for the specials below
+    specials:
+      residual_forces:
+        mean: 0.0
+        scale: 1
+      position_correction:
+        mean: 0.0
+        scale: 1
+      coriolis_forces:
+        mean: 0.0
+        scale: 1
+      gravity_forces:
+        mean: 0.0
+        scale: 1
+      actuator_forces:
+        mean: 0.0
+        scale: 1
+  
+  # Term to use for defining the loss on the distance aware diffusion term
+  loss_diffusion:
+    # Term use to compute the diffusion loss
+    diff_loss_config:
+      ball_radius: 0.2 # Ball of the radius to use for the loss
+      ball_num_samples: 20 # Number of saples around the training data
+      weight_diff_loss: # How to weigt the different term in the loss
+        cvx_coeff_loss: 1000
+        density_value: 0.001 # 0.001
+        density_set_one: 0.1
+        local_convex_loss: 1
+        gradient_loss: 0.001 # default 0
+
+  # Parameterization for training
+  loss_traj_train:
+    # number of extra steps
+    num_substeps: 1
+    # Sampling scheme to use for the training
+    sampling:
+      integration_method: euler_maruyama # The integration method to use
+      # Each delta_t is given by data_stepsize * rand(stepsize_range)
+      stepsize_range: [1, 1]
+      # The total horizon to use for the integration
+      horizon: 2
+      num_samples: 1
+    
+    # Sampling strategy for the validation on the testing data
+    validation_sampling:
+      stepsize_range: [1, 1]
+      horizon: 5
+    
+    # How is the covariance used in te likehood computed
+    discount_factor: 0.9
+    # likehood:
+    #   use_data_scaling: False
+    #   # The type of the loss to use. fixed_cov does not approximate the 
+    #   # kernel of the SDE and use a fixed covariance matrix. 
+    #   # gauss_approx use a gaussian approximation of the kernel of the SDE
+    #   # to have a proper loss function.
+    #   nll_type: gauss_approx # fixed_cov or gauss_approx
+
+    #   # The discount factor to use for the loss
+    #   discount_factor: 0.9
+
+model_optimizer:
+  - name: scale_by_adam
+  - name: linear_schedule
+    scheduler: True
+    params:
+      # Initial learning rate (Negative value for minimization)
+      init_value: -0.01 # 0.01
+      # Learning rate after transition_steps
+      end_value: -0.001
+      transition_steps: 100000
+
+dad_optimizer:
+  - name: scale_by_adam
+  - name: linear_schedule
+    scheduler: True
+    params:
+      # Initial learning rate (Negative value for minimization)
+      init_value: -0.001
+      # Learning rate after transition_steps
+      end_value: -0.001
+      transition_steps: 100000
+
+# Training parameters
+model_training:
+  train_batch: 256 # The mini batch size for the training dataset
+  test_batch: 128 # The mini batch size for the training dataset
+  num_gradient_steps: 50 # The number of gradient steps to perform
+  test_freq: 2000 # The frequency at which to test the model
+  test_num_steps: 80 # The number of test batch iteration for validation
+  save_freq: 4000 # The frequency at which to save the model
+  dad_batch_size: 128 # The mini batch size for the dad term -> less than train_batch
+  freq_update_dad: 1
+
+# Logging configuration
+track_n_checkpoints:
+  max_to_keep: 5 # Default (when commented) = every checkpoints are saved
+  async_exec: False
+  # timeout_async: 60
+  # Metrics for logging the best model
+  # List of possible (Train/ or Test/ must be added in front) terms: 
+  # local_convex_loss, gradient_loss, density_value, density_set_one
+  # grad_min_constr, TotalDiffLoss, Loss-{state}, DataLoss, RegLoss, TotalLoss
+  metrics: # List of possible values: 
+    Train/TotalLoss: 1.0
+    # Test/TotalLoss: 0.1
+    Test/StateLoss: 1.0
