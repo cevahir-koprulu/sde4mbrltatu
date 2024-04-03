@@ -1,8 +1,10 @@
 # File where to save the output
-output_file: random_walker_v1
+# output_file: random_walker_v1
+output_file: medium_replay_walker_v1
 
 # Training and testing data trajectory
-data_dir: walker2d-random-v2
+# data_dir: walker2d-random-v2
+data_dir: walker2d-medium-replay-v2
 
 # Specify what ratio of the dataset is being used for test data
 ratio_test: 0.1

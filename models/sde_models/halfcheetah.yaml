@@ -1,11 +1,15 @@
 # File where to save the output
 # output_file: random_hc_v5
-output_file: medium_replay_hc_vf4
+# output_file: medium_replay_hc_vf4
 # output_file: medium_expert_hc
+output_file: random_hc_vf4
+# output_file: medium_hc_vf4
+# output_file: medium_expert_hc_vf4
 
 # Training and testing data trajectory
-# data_dir: halfcheetah-random-v2
-data_dir: halfcheetah-medium-replay-v2
+data_dir: halfcheetah-random-v2
+# data_dir: halfcheetah-medium-v2
+# data_dir: halfcheetah-medium-replay-v2
 # data_dir: halfcheetah-medium-expert-v2
 
 # Specify what ratio of the dataset is being used for test data

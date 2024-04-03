@@ -118,14 +118,14 @@ def get_args():
         },
         'halfcheetah-random-v2': {
             # python train_tatu_modelbased.py --task halfcheetah-random-v2 --algo-name tatu_mopo_sde --rollout-length 15 --pessimism-coef 0.1 --actor-lr 0.0003 --critic-lr 0.0003 --seed 1 --reward-penalty-coef 0.001 --use_diffusion --sde_model_id 0 --real-ratio 0.05 --sde_num_particles 1
-            0: {'name': 'hc-seed25', 'file': "random_hc_v5_hr-50_dt-0.010_sde.pkl"}, # The best so far?
+            0: {'name': 'hc-seed25', 'file': "random_hc_vf4_hr-10_dt-0.010_sde.pkl"}, # The best so far?
+            # 0: {'name': 'hc-seed25', 'file': "random_hc_v5_hr-50_dt-0.010_sde.pkl"}, # The best so far?
             1: {'name': 'hc-seed1', 'file': "random_hc_hr-50_dt-0.010_sde.pkl"}, # Most tested
             2: {'name': 'hc-v2-seed25', 'file': "random_hc_v3_hr-50_dt-0.010_sde.pkl"}, # Should be identical to 0
-            # 0: {'name': 'simple4_hr-1', 'file': "hc_rand_v2_dsc0.1_simple4_hr-1_dt-0.05_sde.pkl"},
-            # 1: {'name': 'simple6_hr-1', 'file': "hc_rand_v2_dsc0.1_simple6_hr-1_dt-0.05_sde.pkl"},
         },
         'halfcheetah-medium-replay-v2': {
-            0: {'name': 'hc-seed25', 'file': "medium_replay_hc_hr-50_dt-0.010_sde.pkl"},
+            0: {'name': 'hc-seed25', 'file': "medium_replay_hc_vf4_hr-10_dt-0.010_sde.pkl"},
+            # 0: {'name': 'hc-seed25', 'file': "medium_replay_hc_hr-50_dt-0.010_sde.pkl"},
             1: {'name': 'hc-seed1', 'file': "medium_replay_hc_v2_hr-50_dt-0.010_sde.pkl"},
             2: {'name': 'hc-seed2', 'file': "medium_replay_hc_vf_hr-10_dt-0.010_sde.pkl"},
         },
@@ -133,9 +133,15 @@ def get_args():
             0: {'name': 'hc-seed25', 'file': "medium_hc_hr-25_dt-0.010_sde.pkl"},
             1: {'name': 'hc-seed1', 'file': "medium_hc_v2_hr-25_dt-0.010_sde.pkl"},
         },
+        'halfcheetah-medium-expert-v2': {
+            0: {'name': 'hc-seed25', 'file': "medium_expert_hc_vf4_hr-10_dt-0.010_sde.pkl"},
+        },
         'walker2d-random-v2': {
-            0 : {'name': 'walker-seed25', 'file': "random_walker_hr-20_dt-0.002_sde.pkl"},
-        }
+            0 : {'name': 'walker-seed25', 'file': "random_walker_v1_hr-20_dt-0.002_sde.pkl"},
+        },
+        'walker2d-medium-v2': {
+            0 : {'name': 'walker-seed25', 'file': "medium_walker_v1_hr-20_dt-0.002_sde.pkl"},
+        },
     }
 
 

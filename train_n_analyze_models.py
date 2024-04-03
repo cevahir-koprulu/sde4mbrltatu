@@ -225,7 +225,8 @@ def analyze_model(dataset, model_names, hr, num_extra_steps, num_sample, num_tra
         axs_tot_err[1].set_ylabel('Standard deviation of the error')
         axs_tot_err[1].grid(True)
     
-    plt.show()
+    # plt.show()
+    plt.savefig('analysis.png')
 
 
 def create_model(model_name, sampling_cfg, load_fn):
@@ -344,7 +345,7 @@ if __name__ == '__main__':
     parser.add_argument('--train', default=False, action='store_true', help='Flag to train the model')
     parser.add_argument('--analyze', default=False, action='store_true', help='Flag to analyze the model')
     parser.add_argument('--dataset', type=str, default='halfcheetah-random-v2', help='Name of the dataset')
-    parser.add_argument('--model_names', type=str, nargs='+', default=['hc_rand_v2_hr-10_dt-0.05_sde.pkl',], help='Name of the model')
+    parser.add_argument('--model_names', type=str, nargs='+', default=['random_hc_vf4_hr-10_dt-0.010_sde.pkl',], help='Name of the model')
     parser.add_argument('--hr', type=int, default=100, help='Horizon for the sampling')
     parser.add_argument('--num_extra_steps', type=int, default=1, help='The number of extra step wrt data step size for the sampling')
     parser.add_argument('--nsample', type=int, default=100, help='Number of samples for the sampling')
