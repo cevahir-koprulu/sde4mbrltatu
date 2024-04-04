@@ -28,6 +28,7 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
     feature_parameters_to_use: List[str]
     default_feature_values: List[float]
     feature_density_scaling: jnp.ndarray
+    ignore_heterogeneous_noise: bool = False
 
     def setup(self):
         """ Initialize the learnable parameters of the model.
@@ -188,6 +189,9 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
         density function in a way that is bijective and keeps the diffusion
         term bounded by 1. ( 1 values should be attained outside the training)
         """
+        if self.ignore_heterogeneous_noise:
+            return jnp.ones(self.num_states), jnp.zeros(self.num_states)
+
         heteregeneous_scaler = self.param(
             "heteregeneous_scaler",
             nn.initializers.uniform(

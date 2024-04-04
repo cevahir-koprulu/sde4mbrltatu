@@ -94,6 +94,11 @@ def get_args():
             2: 'hc_me_v32__'
         },
         'halfcheetah-random-v2': {
+            0 : 'hc_rand_v3__', # great
+            0 : 'hc_rand_v7', # Nice
+            0 : 'hc_rand_v12____', # Nice
+            0 : 'hc_rand_v13', # Nice
+            0 : 'hc_rand_v13___', # V. Nice -> latest yaml file
         },
     }
     args.sde_model_name = sde_model_list[args.task][args.sde_model_id]

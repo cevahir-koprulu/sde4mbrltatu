@@ -285,7 +285,7 @@ def batch_sequence_loss(
     out_dict['DataLoss'] = mean_loss
 
     # Regularization loss
-    reg_val = reg_fn(params['drift'])
+    reg_val = reg_fn(params)
     out_dict['RegLoss'] = reg_val
 
     # Standard deviation of the SDE min and max values

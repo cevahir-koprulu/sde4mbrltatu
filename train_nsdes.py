@@ -435,8 +435,11 @@ def train_general_nsdes(
     loss_def = config['loss_definitions']
 
     # Create the regularization loss
+    # reg_loss, reg_dict = create_gaussian_regularization_loss(
+    #     sde_params['drift'], loss_def['loss_reg']
+    # )
     reg_loss, reg_dict = create_gaussian_regularization_loss(
-        sde_params['drift'], loss_def['loss_reg']
+        sde_params, loss_def['loss_reg']
     )
     print("\n")
     print(f"Regularization dictionary:\n {reg_dict}")
@@ -680,6 +683,9 @@ def train_general_nsdes(
     # Main training loop
     count_nan_failur = 0
     grad_step = 0
+    # best_dad_params = dad_sde_params
+    # best_dad_loss = np.inf
+    # epochs_since_best = 0
     load_batch, traj_indexes, num_batches = \
         sequential_loader_full_dataset(
             train_data, train_batch, train_stepsize_range,
@@ -687,7 +693,7 @@ def train_general_nsdes(
             action_sampling_strategy
         )
 
-    for _ in tqdm(range(num_gradient_steps)):
+    for curr_epoch in tqdm(range(num_gradient_steps)):
 
         # # Get the current batch of training data
         # train_batch_data = pick_batch_transitions_as_array(
@@ -745,6 +751,13 @@ def train_general_nsdes(
                         dad_sde_params, dad_opt_state, *train_batch_data, key,
                         {}, train_dad_loss, dad_opt
                     )
+                # # Extract the total loss
+                # dad_loss = dad_metrics['TotalDiffLoss']
+                # if dad_loss < best_dad_loss:
+                #     best_dad_loss = dad_loss
+                #     best_dad_params = dad_sde_params
+                # # dad_sde_params = _dad_sde_params
+
                 dad_metrics = {f"DAD/{k}" : np.array(v) \
                                 for k, v in dad_metrics.items()}
 
@@ -774,6 +787,13 @@ def train_general_nsdes(
 
             # Write the checkpoint
             ckpt_model.write_checkpoint_and_log_data(save_dict, metrics_save)
+
+        # Check if we need to stop the training
+        best_step = ckpt_model.get_latest_step()
+        best_step_epochs = best_step // num_batches
+        if (curr_epoch - best_step_epochs) > model_training_config.get('early_stopping_epochs', -1):
+            tqdm.write("Early stopping")
+            break
 
 
 if __name__ == "__main__":

@@ -353,3 +353,29 @@ class TrainCheckpoints:
         ckpt_dir = os.path.join(self.ckpt_dir, f'agent_{step}')
         # Return the result dictionary
         return res_dict, ckpt_dir
+    
+    def get_latest_step(self):
+        """
+        Get the latest step of the checkpoint
+        
+        Returns:
+            step: The latest step of the checkpoint
+                int
+        """
+        step = self.checkpoint_manager.latest_step()
+        if step is None:
+            step = 0
+        return step
+
+    def get_best_step(self):
+        """
+        Get the best step of the checkpoint
+        
+        Returns:
+            step: The best step of the checkpoint
+                int
+        """
+        step = self.checkpoint_manager.best_step()
+        if step is None:
+            step = 0
+        return step
