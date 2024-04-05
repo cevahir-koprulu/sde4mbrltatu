@@ -51,7 +51,7 @@ def get_args():
     parser.add_argument("--dynamics-name", type=str, default=None)
 
     # Offline MBRL training arguments
-    parser.add_argument("--reward-penalty-coef", type=float, default=0.00001)
+    parser.add_argument("--reward-penalty-coef", type=float, default=0.001)
     parser.add_argument("--rollout-length", type=int, default=15)
     parser.add_argument("--rollout-batch-size", type=int, default=5000)
     parser.add_argument("--rollout-freq", type=int, default=1000)
@@ -94,10 +94,10 @@ def get_args():
             2: 'hc_me_v32__'
         },
         'halfcheetah-random-v2': {
-            0 : 'hc_rand_v3__', # great
-            0 : 'hc_rand_v7', # Nice
-            0 : 'hc_rand_v12____', # Nice
-            0 : 'hc_rand_v13', # Nice
+            # 0 : 'hc_rand_v3__', # great
+            # 0 : 'hc_rand_v7', # Nice
+            # 0 : 'hc_rand_v12____', # Nice
+            # 0 : 'hc_rand_v13', # Nice
             0 : 'hc_rand_v13___', # V. Nice -> latest yaml file
         },
     }
