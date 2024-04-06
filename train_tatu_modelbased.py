@@ -60,6 +60,7 @@ def get_args():
     parser.add_argument("--real-ratio", type=float, default=0.05)
     parser.add_argument("--pessimism-coef", type=float, default=0.1)
     parser.add_argument("--beta", type=float, default=5.0)
+    parser.add_argument("--uncertainty-cvar-coef", type=float, default=0.95) # Right-hand tail of the uncertainty distribution. 1 refers to the max discrepancy/diffusion.
 
     parser.add_argument("--epoch", type=int, default=1000)
     parser.add_argument("--step-per-epoch", type=int, default=1000)
