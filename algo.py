@@ -115,6 +115,7 @@ class TATU_model_based():
         env_name="",
         prob_init_obs = 0,
         max_steps_per_env = 1000,
+        unc_cvar_coef = 0.95,
     ):
 
         self.policy = policy
@@ -147,7 +148,7 @@ class TATU_model_based():
         self._pessimism_coef = pessimism_coef
         self.prob_init_obs = prob_init_obs
         self.max_steps_per_env = max_steps_per_env
-
+        self.unc_cvar_coef = unc_cvar_coef
 
     def compute_max_disc(self):
         all_offline_data = self.offline_buffer.sample_all()
@@ -155,24 +156,23 @@ class TATU_model_based():
         observations = all_offline_data["observations"]
         actions = all_offline_data["actions"]
 
-        max_disc = -100
         mini_batch = 1000
         slice_num = len(observations)// mini_batch
         alone_num = len(observations)% mini_batch
+        max_discs = []
         for i in range(slice_num):
             obs = observations[i*mini_batch:(i+1)*mini_batch,:]
             act = actions[i*mini_batch:(i+1)*mini_batch,:]
-            mini_max_disc = np.max(self.fake_env.compute_disc(obs,act))
-            if mini_max_disc > max_disc:
-                max_disc = mini_max_disc
+            max_discs.append(self.fake_env.compute_disc(obs,act))
         if alone_num != 0:
             obs = observations[slice_num*mini_batch:,:]
             act = actions[slice_num*mini_batch:,:]
-            mini_max_disc = np.max(self.fake_env.compute_disc(obs,act))
-            if mini_max_disc > max_disc:
-                max_disc = mini_max_disc
+            max_discs.append(self.fake_env.compute_disc(obs,act))
 
-        return max_disc
+        max_discs = np.array(max_discs)
+        var = np.percentile(max_discs, q=self.unc_cvar_coef*100, axis=0)
+        cvar = np.mean(max_discs[max_discs>=var])
+        return cvar
 
     def _sample_initial_transitions(self):
         return self.offline_buffer.sample(self._rollout_batch_size)
