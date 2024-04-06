@@ -91,7 +91,8 @@ def get_args():
         'halfcheetah-medium-expert-v2': {
             0 : 'hc_me_v31',
             1 : 'hc_me_v30',
-            2: 'hc_me_v32__'
+            2: 'hc_me_v32__',
+            0 : 'hc_me_v5',
         },
         'halfcheetah-random-v2': {
             # 0 : 'hc_rand_v3__', # great
@@ -136,7 +137,7 @@ def train(args=get_args()):
     critic1_backbone = MLP(input_dim=np.prod(args.obs_shape)+args.action_dim, hidden_dims=[256, 256])
     critic2_backbone = MLP(input_dim=np.prod(args.obs_shape)+args.action_dim, hidden_dims=[256, 256])
     dist = DiagGaussian(
-        latent_dim=getattr(actor_backbone, "output_dim"), 
+        latent_dim=getattr(actor_backbone, "output_dim"),
         output_dim=args.action_dim,
         unbounded=True, 
         conditioned_sigma=True
