@@ -115,7 +115,7 @@ class TATU_model_based():
         env_name="",
         prob_init_obs = 0,
         max_steps_per_env = 1000,
-        uncertainty_cvar_coef = 0.95,
+        unc_cvar_coef = 0.95,
     ):
 
         self.policy = policy
@@ -148,7 +148,7 @@ class TATU_model_based():
         self._pessimism_coef = pessimism_coef
         self.prob_init_obs = prob_init_obs
         self.max_steps_per_env = max_steps_per_env
-        self.uncertainty_cvar_coef = uncertainty_cvar_coef
+        self.unc_cvar_coef = unc_cvar_coef
 
     def compute_max_disc(self):
         all_offline_data = self.offline_buffer.sample_all()
@@ -170,14 +170,9 @@ class TATU_model_based():
             max_discs.append(self.fake_env.compute_disc(obs,act))
 
         max_discs = np.array(max_discs)
-        if self.uncertainty_cvar_coef == 1:
-            return np.max(max_discs)
-        elif self.uncertainty_cvar_coef == 0:
-            return np.min(max_discs)
-        else:
-            var = np.percentile(max_discs, q=self.uncertainty_cvar_coef*100, axis=0)
-            cvar = np.mean(max_discs[max_discs>var])
-            return cvar
+        var = np.percentile(max_discs, q=self.unc_cvar_coef*100, axis=0)
+        cvar = np.mean(max_discs[max_discs>=var])
+        return cvar
 
     def _sample_initial_transitions(self):
         return self.offline_buffer.sample(self._rollout_batch_size)

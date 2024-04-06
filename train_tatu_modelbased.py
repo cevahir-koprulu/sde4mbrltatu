@@ -60,7 +60,7 @@ def get_args():
     parser.add_argument("--real-ratio", type=float, default=0.05)
     parser.add_argument("--pessimism-coef", type=float, default=0.1)
     parser.add_argument("--beta", type=float, default=5.0)
-    parser.add_argument("--uncertainty-cvar-coef", type=float, default=0.95) # Right-hand tail of the uncertainty distribution. 1 refers to the max discrepancy/diffusion.
+    parser.add_argument("--unc-cvar-coef", type=float, default=0.95) # Right-hand tail of the uncertainty distribution. 1 refers to the max discrepancy/diffusion.
 
     parser.add_argument("--epoch", type=int, default=1000)
     parser.add_argument("--step-per-epoch", type=int, default=1000)
@@ -257,7 +257,8 @@ def train(args=get_args()):
             use_diffusion = 'sde' in args.algo_name and args.use_diffusion,
             env_name=task,
             prob_init_obs = args.prob_init_obs,
-            max_steps_per_env = env_info['max_episode_steps']
+            max_steps_per_env = env_info['max_episode_steps'],
+            unc_cvar_coef=args.unc_cvar_coef,
     )
     elif args.algo_name == "tatu_combo" or 'sde' in args.algo_name:
         cql_policy = CQLPolicy(
@@ -291,7 +292,8 @@ def train(args=get_args()):
             use_diffusion = 'sde' in args.algo_name and args.use_diffusion,
             env_name=task,
             prob_init_obs = args.prob_init_obs,
-            max_steps_per_env = env_info['max_episode_steps']
+            max_steps_per_env = env_info['max_episode_steps'],
+            unc_cvar_coef=args.unc_cvar_coef,
     )
     else:
         raise Exception("Invalid algo name")
@@ -301,7 +303,7 @@ def train(args=get_args()):
     # log
     t0 = datetime.datetime.now().strftime("%m%d_%H%M%S")
     if "sde" in args.algo_name:
-        log_file = f"{args.sde_model_name}_diff={args.use_diffusion}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}_pc={args.pessimism_coef}"+\
+        log_file = f"{args.sde_model_name}_diff={args.use_diffusion}_cvar={args.unc_cvar_coef}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}_pc={args.pessimism_coef}"+\
             f"_rr={args.real_ratio}_ep={args.epoch}_rfq={args.rollout_freq}_spe={args.step_per_epoch}_alr={args.actor_lr}_clr={args.critic_lr}_seed={args.seed}_{t0}"
     else:
         log_file = f'critic_num_{critic_num}_seed_{args.seed}_{t0}-{args.task.replace("-", "_")}_{args.algo_name}'
