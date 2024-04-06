@@ -485,7 +485,7 @@ class FakeEnv_SDE_Trunc:
             if name_diff not in pred_feats:
                 pred_feats[name_diff] = jax.numpy.zeros_like(pred_states)
             diffusion_value = pred_feats[name_diff]
-            
+
             # Extract the next state and diffusion from the output trajectory
             pred_states = pred_states[:, :, 1, :]
             diffusion_value = jax.numpy.abs(diffusion_value[:, :, -1, :])
@@ -607,7 +607,7 @@ class FakeEnv_SDE_Trunc:
                 disc = np.max(dists, axis=0)
                 if not self.penalty_learned_var:
                     # max discrepancy between particles
-                    penalty = np.max(dists, axis=0)      
+                    penalty = np.max(dists, axis=0)
                 else:
                     # norm of std of particles -> correlation to distance above
                     penalty = np.linalg.norm(
@@ -616,8 +616,9 @@ class FakeEnv_SDE_Trunc:
                     )
             else: # We use the diffusion as penalty
                 # diffusion as penalty
-                penalty = np.sum(predicted_diffusion, axis=-1)
-                penalty = np.max(penalty, axis=0)
+                penalty = np.linalg.norm(predicted_diffusion, axis=-1)
+                # penalty = np.max(penalty, axis=0)
+                penalty = np.mean(penalty, axis=0)
                 disc_sde = penalty
 
             # Make the penalty a column vector
@@ -683,7 +684,7 @@ class FakeEnv_SDE_Trunc:
         predicted_particles = np.array(predicted_particles)
         predicted_diffusion = np.array(predicted_diffusion)
         if self.use_diffusion:
-            disc = np.mean(np.sum(predicted_diffusion, axis=2), axis=0)
+            disc = np.mean(np.linalg.norm(predicted_diffusion, axis=-1), axis=0)
             # Let's multiply by the horizon so that the cut threshold
             # can depend on accumulated error
             disc = disc * self.model['rollout_length']
@@ -692,7 +693,8 @@ class FakeEnv_SDE_Trunc:
             # can depend on accumulated error
             diffs = predicted_particles - np.mean(predicted_particles, axis=0)
             dists = np.linalg.norm(diffs, axis=2) * \
-                self.model['rollout_length']          
+                self.model['rollout_length']
             disc = np.max(dists, axis=0)
+            # disc = np.ones_like(disc) * 34
 
         return disc
