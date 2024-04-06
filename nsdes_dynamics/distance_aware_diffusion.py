@@ -129,6 +129,10 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
         """
         if len(self.density_free_nn_params) == 0:
             return
+        is_constant_scale = \
+            self.density_free_nn_params.get("constant_scale", False)
+        if is_constant_scale:
+            return
         density_free_nn_params = self.density_free_nn_params
         act_fn_name = density_free_nn_params['activation_fn']
         layers_archictecture = density_free_nn_params['layers_archictecture']
@@ -172,7 +176,16 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
         """
         if len(self.density_free_nn_params) == 0:
             return jnp.zeros(self.num_states)
-        density_free_term = self.density_free_nn(features_model)
+        is_constant_scale = \
+            self.density_free_nn_params.get("constant_scale", False)
+        if is_constant_scale:
+            density_free_term = self.param(
+                "density_free_nn",
+                nn.initializers.uniform(),
+                (self.num_states,)
+            )
+        else:
+            density_free_term = self.density_free_nn(features_model)
         # Put the density free term in the interval [-1, 1]
         scaled_diff_term = jnp.tanh(density_free_term)
         center, width = self.get_density_free_mid_and_width()
