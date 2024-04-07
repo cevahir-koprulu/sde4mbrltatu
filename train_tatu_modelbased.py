@@ -56,11 +56,11 @@ def get_args():
     parser.add_argument("--rollout-batch-size", type=int, default=5000)
     parser.add_argument("--rollout-freq", type=int, default=1000)
     parser.add_argument("--model-retain-epochs", type=int, default=5)
-    
+
     parser.add_argument("--real-ratio", type=float, default=0.05)
     parser.add_argument("--pessimism-coef", type=float, default=0.1)
     parser.add_argument("--beta", type=float, default=5.0)
-    parser.add_argument("--unc-cvar-coef", type=float, default=0.95) # Right-hand tail of the uncertainty distribution. 1 refers to the max discrepancy/diffusion.
+    # parser.add_argument("--unc-cvar-coef", type=float, default=0.95) # Right-hand tail of the uncertainty distribution. 1 refers to the max discrepancy/diffusion.
 
     parser.add_argument("--epoch", type=int, default=1000)
     parser.add_argument("--step-per-epoch", type=int, default=1000)
@@ -85,6 +85,11 @@ def get_args():
     parser.add_argument("--use_gpu", type=bool, default=True)
     parser.add_argument("--jax_gpu_mem_frac", type=str, default='0.5')
     parser.add_argument("--prob_init_obs", type=float, default=0)
+    parser.add_argument("--batch_size_trunc_thresh", type=int, default=100)
+    parser.add_argument("--num_particles_trunc_thresh", type=int, default=5)
+    parser.add_argument("--unc_cvar_coef", type=float, default=0.95)
+    parser.add_argument("--threshold_decision_var", type=str, 
+                        default='diffusion_value') # dad_based_diff, diff_density
 
     args= parser.parse_args()
 
@@ -202,6 +207,10 @@ def train(args=get_args()):
             "env_name": args.task,
             "ckpt_step": args.cpkt_step,
             "rollout_length": args.rollout_length,
+            "batch_size_trunc_thresh": args.batch_size_trunc_thresh,
+            "num_particles_trunc_thresh": args.num_particles_trunc_thresh,
+            "threshold_decision_var": args.threshold_decision_var,
+            "unc_cvar_coef": args.unc_cvar_coef,
         }
 
     # create buffer
@@ -298,9 +307,8 @@ def train(args=get_args()):
     )
     else:
         raise Exception("Invalid algo name")
-        
 
-        
+
     # log
     t0 = datetime.datetime.now().strftime("%m%d_%H%M%S")
     if "sde" in args.algo_name:
@@ -326,10 +334,10 @@ def train(args=get_args()):
     )
 
     logger.print(f"use diffusion: {args.use_diffusion} rollout_length: {args.rollout_length:d} reward_penalty_coef: {args.reward_penalty_coef:.2f} pessimism_coef: {args.pessimism_coef:.2f} min_q_weight :{args.beta} real_ratio:{args.real_ratio}")
-    
+
     # pretrain dynamics model on the whole dataset
     trainer.train_dynamics()
-    
+
     # begin train
     trainer.train_policy()
     logger.print(f"env: {args.task} seed: {args.seed} use diffusion: {args.use_diffusion} rollout_length: {args.rollout_length:d} reward_penalty_coef: {args.reward_penalty_coef:.2f} pessimism_coef: {args.pessimism_coef:.2f} min_q_weight :{args.beta} real_ratio:{args.real_ratio}")

@@ -420,6 +420,7 @@ def load_dataset_for_nsdes(
     median_values_per_field = {name: np.median(np.abs(all_fields[name])) for name in all_fields.keys()}
     mean_data_fields = { name : np.mean(v) for name, v in all_fields.items() }
     scale_data_fields = { name : np.std(v) for name, v in all_fields.items() }
+    percentile_data_fields = { name : np.percentile(np.abs(v), 75) for name, v in all_fields.items() }
 
     # Construct the dataset
     dataset = {
@@ -432,6 +433,7 @@ def load_dataset_for_nsdes(
         "median_values_per_field": median_values_per_field,
         "mean_data_fields": mean_data_fields,
         "scale_data_fields": scale_data_fields,
+        "95th_percentile_data_fields": percentile_data_fields,
     }
 
     # Create the training dataset folder if it does not exist
@@ -439,5 +441,5 @@ def load_dataset_for_nsdes(
     output_path = os.path.join(dir_dataset, f"{env_name}_nsdes.pkl")
     with open(output_path, "wb") as f:
         pickle.dump(dataset, f)
-    
+
     return dataset

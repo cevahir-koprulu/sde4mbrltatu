@@ -126,6 +126,7 @@ def setup_system_dataset_and_nsde(
     names_states, names_controls = \
         env_infos['names_states'], env_infos['names_controls']
     sde_config = config['model']
+    time_steps = env_infos["stepsize"]
 
     diff_model_name = sde_config.get('diffusion_term', {}).get('model_name', '')
     is_diff_distance_aware = 'DistanceAwareDiffusion' in diff_model_name
@@ -153,12 +154,16 @@ def setup_system_dataset_and_nsde(
     # Let's extract the mean values for the relevant fields and scale
     mean_data_fields = train_data['mean_data_fields']
     scale_data_fields = train_data['scale_data_fields']
+    percentile_data_fields = train_data['95th_percentile_data_fields']
     print("\nMean Data Fields :\n", mean_data_fields)
     print("\nScale Data Fields :\n", scale_data_fields)
+    print("\n95th Percentile Data Fields :\n", percentile_data_fields)
     _mean_states = np.array([mean_data_fields[k] for k in names_states])
     _scale_states = np.array([scale_data_fields[k] for k in names_states])
     _mean_controls = np.array([mean_data_fields[k] for k in names_controls])
     _scale_controls = np.array([scale_data_fields[k] for k in names_controls])
+    percentile_states = np.array([percentile_data_fields[k] for k in names_states])
+
 
     if is_diff_distance_aware:
         # Extract the scaling factor for density NN.
@@ -169,7 +174,13 @@ def setup_system_dataset_and_nsde(
             diff_args['feature_density_scaling'] = jnp.ones(scaling_factor.shape)
         else:
             diff_args['feature_density_scaling'] = scaling_factor
-            
+        if "upper_bound_diffusion_scale" in diff_args:
+            max_stds = diff_args.pop("upper_bound_diffusion_scale") * \
+                percentile_states
+            # Include the stepsize
+            upper_bound_diffusion = max_stds / np.sqrt(time_steps)
+            diff_args["upper_bound_diffusion"] = upper_bound_diffusion
+            print ("\nUpper Bound Diffusion : \n", upper_bound_diffusion)            
 
     # Let's set the names of the states and controls for the model loader
     args_drift = sde_config['drift_term']['args']
@@ -789,7 +800,7 @@ def train_general_nsdes(
             ckpt_model.write_checkpoint_and_log_data(save_dict, metrics_save)
 
         # Check if we need to stop the training
-        best_step = ckpt_model.get_latest_step()
+        best_step = ckpt_model.get_best_step()
         best_step_epochs = best_step // num_batches
         if (curr_epoch - best_step_epochs) > model_training_config.get('early_stopping_epochs', -1):
             tqdm.write("Early stopping")

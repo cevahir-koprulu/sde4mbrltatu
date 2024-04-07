@@ -1,16 +1,12 @@
-import os
+# import os
 # os.environ["JAX_PLATFORM_NAME"] = "cpu"
-
-from typing import Any, Dict, Tuple, List
 
 import numpy as np
 
-import copy
-import pickle
-# os.environ['CUDA_VISIBLE_DEVICES'] = '6'
-
 import jax
 import jax.numpy as jnp
+
+from tqdm.auto import tqdm
 
 from nsdes_dynamics.load_learned_nsdes import (
     load_system_sampler_from_model_name,
@@ -21,17 +17,6 @@ from nsdes_dynamics.utils_for_d4rl_mujoco import (
     get_environment_infos_from_name,
 )
 
-from nsdes_dynamics.dataset_op import (
-    pick_batch_transitions_from_trajectory_as_array
-)
-
-from nsdes_dynamics.parameter_op import (
-    pretty_print_config
-)
-
-from tqdm.auto import tqdm
-
-import matplotlib.pyplot as plt
 
 def load_dataset(env_name, verbose=False):
     """ Load the dataset and print infos about the different environments
@@ -172,21 +157,21 @@ def load_diffusion_and_disc(
             u = np.concatenate((u, last_u), axis=0)
         res = _my_pred_fn(x, u, rng)
         res = { k : np.array(v) for k, v in res.items()}
-        if batch_x < rollout_batch_size:
-            res  = {
-                k : v[:batch_x].reshape((-1,v.shape[-1])) for k, v in res.items()
-            }
+        # if batch_x < rollout_batch_size:
+        res  = {
+            k : v[:batch_x].reshape((-1,v.shape[-1])) for k, v in res.items()
+        }
         return res
 
     return augmented_pred_fn
 
 def compute_discrepancy_on_full_dataset(
-    _dataset: Dict[str, Any],
+    _dataset,
     pred_fn,
-    horizon: int,
+    horizon,
     rollout_batch_size: int,
-    _names_states: List[str],
-    _names_controls: List[str],
+    _names_states,
+    _names_controls,
     seed = 10
 ):
     """ Compute the discrepancy on the full dataset
@@ -197,19 +182,22 @@ def compute_discrepancy_on_full_dataset(
     for traj in tqdm(trajectories):
         # Now we want to every batch of size rollout_batch_size
         # to compute the discrepancy
-        num_transitions = len(traj) - horizon
+        num_transitions = (len(traj["time"]) - horizon) // horizon
         num_batches = num_transitions // rollout_batch_size
         num_batches = num_batches + 1 if num_transitions % rollout_batch_size != 0 else num_batches
-        for indx_batch in range(num_batches):
-            start_indx = indx_batch * rollout_batch_size
-            end_indx = (indx_batch+1) * rollout_batch_size
+        # print(f"num_batches {num_batches}, num_transitions {num_transitions}")
+        for indx_batch in range(2):
+            start_indx = indx_batch * rollout_batch_size * horizon
+            end_indx = (indx_batch+1) * rollout_batch_size * horizon
             if indx_batch == num_batches - 1:
-                end_indx = len(traj) - horizon
+                end_indx = num_transitions * horizon
+            # print(f"start_indx: {start_indx}, end_indx: {end_indx}")
             states = np.array(
-                [traj[name_state][start_indx:end_indx] for name_state in _names_states]
+                [traj[name_state][start_indx:end_indx:horizon] for name_state in _names_states]
             ).T
+            # print(states.shape)
             controls = np.array(
-                [ [traj[name_control][i:i+horizon] for i in range(start_indx, end_indx)] \
+                [ [traj[name_control][i:i+horizon] for i in range(start_indx, end_indx, horizon)] \
                     for name_control in _names_controls
                 ]
             ).transpose((1,2,0))
@@ -221,6 +209,8 @@ def compute_discrepancy_on_full_dataset(
     stacked_results = {
         k : np.concatenate([r[k] for r in res_list], axis=0) for k in res_names
     }
+    for k in res_names:
+        print(f"Shape of {k}: {stacked_results[k].shape}")
     return stacked_results
 
 dataset_name = "halfcheetah-medium-expert-v2"
@@ -247,14 +237,14 @@ models_to_evaluate = \
     #     "plot_name" : "Ens",
     #     "is_gaussian" : True,
     # },
+    # { # A learned model
+    #     "model_name" : "hc_me_v31",
+    #     "plot_name" : "Learned v1",
+    #     "step" : -2, # The best model
+    #     "task_name" : "halfcheetah-medium-expert-v2"
+    # },
     { # A learned model
-        "model_name" : "hc_me_v31",
-        "plot_name" : "Learned v1",
-        "step" : -2, # The best model
-        "task_name" : "halfcheetah-medium-expert-v2"
-    },
-    { # A learned model
-        "model_name" : "hc_me_v1",
+        "model_name" : "hc_me_v11",
         "plot_name" : "Learned v2",
         "step" : -2, # The best model
         "task_name" : "halfcheetah-medium-expert-v2"
@@ -268,7 +258,7 @@ num_particles = 5
 names_states = env_infos["names_states"]
 names_controls = env_infos["names_controls"]
 pert_scale = 0.2
-rollout_batch_discr = 500
+rollout_batch_discr = 150
 
 
 models_dict = {}
@@ -312,6 +302,7 @@ colors = ["b", "r", "g", "c", "m", "y", "k"]
 color_per_model = {model_name : colors[i] for i, model_name in enumerate(models_dict.keys())}
 
 import seaborn as sns
+import matplotlib.pyplot as plt
 
 num_steps_error = -1 # -1 Errot analysis till the last step. 1 means error analysis till the first step
 fields_to_plot = discrepancy_results[list(discrepancy_results.keys())[0]].keys()

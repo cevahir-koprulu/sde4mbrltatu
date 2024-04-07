@@ -396,7 +396,7 @@ class FakeEnv_SDE_Trunc:
         self.use_diffusion = use_diffusion
         self.env_name = self.model["env_name"]
         self.init_model()
-    
+
     def init_model(self,):
         """
         Load the SDE model and define the prediction function.
@@ -481,7 +481,7 @@ class FakeEnv_SDE_Trunc:
                 jax.vmap(_temp_sampler)(x, u, rng)
 
             # Get the diffusion term
-            name_diff = 'diffusion_value' # diffusion_value
+            name_diff = self.model['threshold_decision_var'] # diffusion_value
             if name_diff not in pred_feats:
                 pred_feats[name_diff] = jax.numpy.zeros_like(pred_states)
             diffusion_value = pred_feats[name_diff]
@@ -521,10 +521,243 @@ class FakeEnv_SDE_Trunc:
             if batch_x < rollout_batch_size:
                 pred_state = pred_state[:,:batch_x,:]
                 diff_value = diff_value[:,:batch_x,:]
-            
+
             return pred_state, diff_value, next_rng
 
-        self.predict = augmented_pred_fn   
+        self.predict = augmented_pred_fn
+
+        # Compute the threshold for truncation
+        unc_dict = self.compute_threshold_truncation()
+
+        self.threshold = self.compute_threshold_from_uncertainty(
+            unc_dict,
+            quantity_name=self.model['threshold_decision_var'],
+            threshold_quantile=self.model['unc_cvar_coef']
+        )
+
+    def compute_threshold_truncation(
+        self,
+    ) -> float:
+        """ Compute the threshold for truncation based on the the
+        uncertainty distribution in the training dataset.
+        """
+        # Import jax after setting the GPU memory fraction
+        import os
+        import pickle
+        import jax
+        import jax.numpy as jnp
+        # Import the function to load the SDE model sampler
+        from nsdes_dynamics.load_learned_nsdes import \
+            load_system_sampler_from_model_name
+        from nsdes_dynamics.utils_for_d4rl_mujoco import \
+            load_dataset_for_nsdes
+        from tqdm.auto import tqdm
+
+        print("\n################################################")
+        print("Computing the threshold for truncation")
+        print("################################################\n")
+        horizon = self.model['rollout_length']
+
+        # Check if the model already exists
+        # Save the dataset
+        folder_out = "log/models_uncertainty"
+        if not os.path.exists(folder_out):
+            os.makedirs(folder_out)
+        name_out = f"log/{self.env_name}_{self.model['model_name']}_hor-{horizon}_unc.pkl"
+        if os.path.exists(name_out):
+            print(f"Loading the uncertainty distribution from {name_out}")
+            with open(name_out, "rb") as f:
+                uncertainty_distr = pickle.load(f)
+            return uncertainty_distr
+
+        sampler_fn, sde_model = load_system_sampler_from_model_name(
+            self.env_name,
+            model_name = self.model['model_name'],
+            stepsize = self.model['stepsize'],
+            horizon = self.model['rollout_length'],
+            num_particles = self.model.get('num_particles_trunc_thresh', 5),
+            step = self.model.get('ckpt_step', -2),
+            integration_method=None,
+            verbose=False,
+            return_sde_model= True
+        )
+
+        def _uncertainty_est_fn(
+            x : jax.numpy.ndarray,
+            u : jax.numpy.ndarray,
+            rng : jax.random.PRNGKey
+        ):
+            # Some checks
+            assert x.ndim == 2 and u.ndim == 3 and \
+                x.shape[0] == u.shape[0], f"Invalid shapes: {x.shape} {u.shape}"
+            assert u.shape[1] == horizon, f"Invalid u horizon: {u.shape[1]}"
+
+            # Get matching rng keys
+            rng = jax.random.split(rng, x.shape[0])
+
+            # Define the vmap sampler function
+            _temp_sampler =  lambda _x, _u, _rng: \
+                sampler_fn(state=_x, control=_u, rng_key=_rng)
+
+            # Compute the predictions
+            pred_states, pred_feats = \
+                jax.vmap(_temp_sampler)(x, u, rng)
+            # Let's remove the first state
+            pred_states = pred_states[:, :, 1:, :]
+            pred_feats["diff_density"] = pred_feats["diff_density"][...,None]
+
+            diffs = pred_states - jnp.expand_dims(jnp.mean(pred_states, axis=1), axis=1)
+            disc = jnp.linalg.norm(diffs, axis=-1)
+            disc = jnp.cumsum(disc, axis=-1)
+
+            # Get the diffusion term
+            pred_feats = {
+                k : jnp.cumsum(jnp.linalg.norm(v, axis=-1), axis=-1) \
+                    for k, v in pred_feats.items() \
+                        if k in ["diffusion_value", "dad_free_diff",
+                                "dad_based_diff", "diff_density"]
+            }
+
+            result_dict = {
+                "disc" : disc,
+                **pred_feats
+            }
+            return result_dict
+
+        # Jit the uncertainty estimation function
+        # jit_uncertainty_est_fn = jax.jit(_uncertainty_est_fn, backend='cpu')
+        jit_uncertainty_est_fn = jax.jit(_uncertainty_est_fn)
+        batch_size = self.model.get('batch_size_trunc_thresh', 100)
+
+        def augmented_pred_fn(x, u , rng):
+            batch_x = x.shape[0]
+            last_x = x[-1]
+            last_u = u[-1]
+            # Complte x, u to have a batch size of rollout_batch_size
+            # so that to avoid recompilation
+            if batch_x < batch_size:
+                last_x = np.repeat(last_x[None], batch_size-batch_x, axis=0)
+                last_u = np.repeat(last_u[None], batch_size-batch_x, axis=0)
+                x = np.concatenate((x, last_x), axis=0)
+                u = np.concatenate((u, last_u), axis=0)
+            res = jit_uncertainty_est_fn(x, u, rng)
+            res = { k : np.array(v) for k, v in res.items()}
+            # if batch_x < batch_size:
+            res  = {
+                k : v[:batch_x].reshape((-1,v.shape[-1])) \
+                    for k, v in res.items()
+            }
+            return res
+
+        def compute_discrepancy_on_full_dataset(
+            _dataset,
+            pred_fn,
+            horizon: int,
+            rollout_batch_size: int,
+            _names_states,
+            _names_controls,
+            rng
+        ):
+            """ Compute the discrepancy on the full dataset
+            """
+            trajectories = _dataset["trajectories"]
+            res_list = []
+            for traj in tqdm(trajectories):
+                # Now we want to every batch of size rollout_batch_size
+                # to compute the discrepancy
+                # TODO: Esentialy split the dataset into sequences of 'horizon' length
+                # Maybe should compute at every data point. Just too long for prob no add-on
+                if len(traj["time"]) < horizon:
+                    print(f"Trajectory too short: {len(traj['time'])}")
+                    continue
+
+                num_transitions = (len(traj["time"]) - horizon) // horizon
+                num_batches = num_transitions // rollout_batch_size
+                num_batches = num_batches + 1 \
+                    if num_transitions % rollout_batch_size != 0 \
+                        else num_batches
+                for indx_batch in range(num_batches):
+                    start_indx = indx_batch * rollout_batch_size * horizon
+                    end_indx = (indx_batch+1) * rollout_batch_size * horizon
+                    if indx_batch == num_batches - 1:
+                        end_indx = num_transitions * horizon
+                    states = np.array(
+                        [traj[name_state][start_indx:end_indx:horizon] \
+                            for name_state in _names_states]
+                    ).T
+                    # print(states.shape)
+                    controls = np.array(
+                        [ [traj[name_control][i:i+horizon] \
+                            for i in range(start_indx, end_indx, horizon)] \
+                                for name_control in _names_controls
+                        ]
+                    ).transpose((1,2,0))
+                    # Compute the discrepancy
+                    rng, _rng = jax.random.split(rng)
+                    res = pred_fn(states, controls, _rng)
+                    res_list.append(res)
+            res_names = res_list[0].keys()
+            stacked_results = {
+                k : np.concatenate([r[k] for r in res_list], axis=0) \
+                    for k in res_names
+            }
+            for k in res_names:
+                print(f"Shape of {k}: {stacked_results[k].shape}")
+            return stacked_results
+
+        # Load the dataset
+        dataset = load_dataset_for_nsdes(self.env_name)
+        self.next_rng, rng_unc = jax.random.split(self.next_rng)
+        uncertainty_distr = compute_discrepancy_on_full_dataset(
+            dataset,
+            augmented_pred_fn,
+            horizon,
+            batch_size,
+            sde_model.names_states,
+            sde_model.names_controls,
+            rng_unc
+        )
+
+        # Save the uncertainty distribution
+        with open(name_out, "wb") as f:
+            pickle.dump(uncertainty_distr, f)
+        print(f"Saved the uncertainty distribution to {name_out}")
+        return uncertainty_distr
+
+    def compute_threshold_from_uncertainty(
+        self,
+        uncertainty_distr,
+        quantity_name,
+        threshold_quantile
+    ) -> float:
+        # Extract min, max, and mean of all the uncertainty values
+        mean_unc ={
+            k : np.mean(v, axis=0) for k, v in uncertainty_distr.items()
+        }
+        max_unc ={
+            k : np.max(v, axis=0) for k, v in uncertainty_distr.items()
+        }
+        min_unc ={
+            k : np.min(v, axis=0) for k, v in uncertainty_distr.items()
+        }
+
+        # Print these values
+        print("\nMean uncertainty values:")
+        for k in mean_unc.keys():
+            print(f"{k}: {mean_unc[k]}")
+        print("\nMax uncertainty values:")
+        for k in max_unc.keys():
+            print(f"{k}: {max_unc[k]}")
+        print("\nMin uncertainty values:")
+        for k in min_unc.keys():
+            print(f"{k}: {min_unc[k]}")
+
+        distr_quantity = uncertainty_distr[quantity_name]
+        var = np.percentile(distr_quantity, threshold_quantile*100, axis=0)
+        cvar = np.array([np.mean(distr_quantity[distr_quantity[:,i] >= var[i],i])\
+            for i in range(var.shape[0])])
+        print(f"\nThreshold cvar value for {quantity_name} at {threshold_quantile*100}th percentile: \n {cvar}\n")
+        return cvar[-1], max_unc[quantity_name][-1]
 
     def _get_logprob(self, x, means, variances):
         """ This function is not used but defined for consistency.
@@ -651,7 +884,7 @@ class FakeEnv_SDE_Trunc:
 
         # Check if the cumulative error is above the threshold
         unknown = np.where(cumul_error > threshold)
-        terminals[unknown] = [True]  
+        terminals[unknown] = [True]
         halt_num = len(unknown[0])
         halt_ratio = len(unknown[0])/len(obs)
 
@@ -666,35 +899,40 @@ class FakeEnv_SDE_Trunc:
     def close(self):
         pass
 
-    def compute_disc(self,obs,act):
+    def get_threshold_truncation(self):
+        """ Return the truncation threshold.
         """
-        Compute the maximum discrepancy given a batch of obs and act.
-        The discrepancy is computed as the maximum distance between
-        particles in the predicted trajectory or the maximum diffusion
-        value.
-        """
-        assert len(obs.shape) == len(act.shape)
-        assert obs.ndim > 1 and act.ndim > 1
+        return self.threshold
 
-        # Predict the next state and diffusion values
-        predicted_particles, predicted_diffusion, self.next_rng = \
-            self._predict(obs, act, self.next_rng)
+    # def compute_disc(self,obs,act):
+    #     """
+    #     Compute the maximum discrepancy given a batch of obs and act.
+    #     The discrepancy is computed as the maximum distance between
+    #     particles in the predicted trajectory or the maximum diffusion
+    #     value.
+    #     """
+    #     assert len(obs.shape) == len(act.shape)
+    #     assert obs.ndim > 1 and act.ndim > 1
 
-        # Convert the predictions to numpy arrays
-        predicted_particles = np.array(predicted_particles)
-        predicted_diffusion = np.array(predicted_diffusion)
-        if self.use_diffusion:
-            disc = np.mean(np.linalg.norm(predicted_diffusion, axis=-1), axis=0)
-            # Let's multiply by the horizon so that the cut threshold
-            # can depend on accumulated error
-            disc = disc * self.model['rollout_length']
-        else:
-            # Let's multiply by the horizon so that the cut threshold
-            # can depend on accumulated error
-            diffs = predicted_particles - np.mean(predicted_particles, axis=0)
-            dists = np.linalg.norm(diffs, axis=2) * \
-                self.model['rollout_length']
-            disc = np.max(dists, axis=0)
-            # disc = np.ones_like(disc) * 34
+    #     # Predict the next state and diffusion values
+    #     predicted_particles, predicted_diffusion, self.next_rng = \
+    #         self._predict(obs, act, self.next_rng)
 
-        return disc
+    #     # Convert the predictions to numpy arrays
+    #     predicted_particles = np.array(predicted_particles)
+    #     predicted_diffusion = np.array(predicted_diffusion)
+    #     if self.use_diffusion:
+    #         disc = np.mean(np.linalg.norm(predicted_diffusion, axis=-1), axis=0)
+    #         # Let's multiply by the horizon so that the cut threshold
+    #         # can depend on accumulated error
+    #         disc = disc * self.model['rollout_length']
+    #     else:
+    #         # Let's multiply by the horizon so that the cut threshold
+    #         # can depend on accumulated error
+    #         diffs = predicted_particles - np.mean(predicted_particles, axis=0)
+    #         dists = np.linalg.norm(diffs, axis=2) * \
+    #             self.model['rollout_length']
+    #         disc = np.max(dists, axis=0)
+    #         # disc = np.ones_like(disc) * 34
+
+    #     return disc

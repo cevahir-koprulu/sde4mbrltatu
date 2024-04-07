@@ -184,7 +184,7 @@ class TATU_model_based():
             arr_to_pick = [self._rollout_length, self.max_steps_per_env]
             _rollout_length = np.random.choice(arr_to_pick, p=[1-self.prob_init_obs, self.prob_init_obs])
             print("####### Rolling out for {} steps #######".format(_rollout_length) )
-        
+
         if _rollout_length == self.max_steps_per_env:
             init_transitions = self.offline_buffer.sample_initial_observations(self._rollout_batch_size)
             observations = init_transitions
@@ -192,11 +192,17 @@ class TATU_model_based():
             init_transitions = self._sample_initial_transitions()
             observations = init_transitions["observations"]
 
-        if self._max_disc == None:
+        if self._max_disc == None and not self.is_sde:
             self._max_disc = self.compute_max_disc()
             print('---> max_disc :  ', self._max_disc)
+        elif self.is_sde:
+            self._max_disc = self.fake_env.max_uncertainty
 
+        # TODO: Remove this pessimism_coef -> default is 1
         threshold = 1/self._pessimism_coef *self._max_disc
+        if self.is_sde:
+            threshold = self.fake_env.threshold
+
         # print('max_disc',self._max_disc)
         # print('threshold',threshold)
         # rollout
