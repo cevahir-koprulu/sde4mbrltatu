@@ -362,6 +362,9 @@ def predict_with_ensemble(dynamics_model, num_traj=1, deterministic=False):
 # %%
 # Load a dataset
 dataset_name = "halfcheetah-medium-expert-v2"
+# dataset_name = "halfcheetah-random-v2"
+dataset_name_ens = "halfcheetah-medium-expert-v2"
+
 dataset = load_dataset(dataset_name, verbose=False)
 
 # %%
@@ -375,29 +378,38 @@ dataset = load_dataset(dataset_name, verbose=False)
 #     ensemble_sampling_fn = predict_with_ensemble(ensemble_dynamics, num_traj=num_sample, deterministic=deterministic_ensemble)
 
 # %%
-# Define the models to evaluate
+# Define the models to evaluate hc_rand_v2_
 models_to_evaluate = \
 [
-    { # A learned model
-        "model_name" : "hc_me_v32__",
-        "plot_name" : "Learned v1",
-        "step" : -2, # The best model
-    },
     # { # A learned model
-    #     "model_name" : "hc_me_v6",
+    #     "model_name" : "hc_rand_v7",
+    #     "plot_name" : "Learned v1",
+    #     "step" : -2, # The best model
+    #     "task_name" : "halfcheetah-random-v2"
+    # },
+    # { # A learned model
+    #     "model_name" : "hc_rand_v13___",
     #     "plot_name" : "Learned v2",
     #     "step" : -2, # The best model
+    #     "task_name" : "halfcheetah-random-v2"
     # },
-    # { # A learned model
-    #     "model_name" : "hc_sde_base__________",
-    #     "plot_name" : "Learned v2",
-    #     "step" : -1, # The best model
+    # {
+    #     "model_name" : "critic_num_2_seed_32_0128_215130-halfcheetah_medium_expert_v2_tatu_mopo",
+    #     "plot_name" : "Ens",
+    #     "is_gaussian" : True,
     # },
-    {
-        "model_name" : "critic_num_2_seed_32_0128_215130-halfcheetah_medium_expert_v2_tatu_mopo",
-        "plot_name" : "Ens",
-        "is_gaussian" : True,
-    }
+    { # A learned model
+        "model_name" : "hc_me_v31",
+        "plot_name" : "Learned v1",
+        "step" : -2, # The best model
+        "task_name" : "halfcheetah-medium-expert-v2"
+    },
+    { # A learned model
+        "model_name" : "hc_me_v11",
+        "plot_name" : "Learned v2",
+        "step" : -2, # The best model
+        "task_name" : "halfcheetah-medium-expert-v2"
+    },
 ]
 env_infos = get_environment_infos_from_name(dataset_name)
 data_stepsize = env_infos["stepsize"]
@@ -418,7 +430,8 @@ for i, model in enumerate(models_to_evaluate):
     is_gaussian = model.get("is_gaussian", False)
     if not is_gaussian:
         sampling_fn = load_system_sampler_from_model_name(
-            env_name = dataset_name, model_name = model_name,
+            env_name = model.get("task_name", dataset_name),
+            model_name = model_name,
             stepsize = data_stepsize*num_steps, horizon = data_horizon,
             step = model_step, integration_method="euler_maruyama",
             num_particles=num_particles
@@ -426,7 +439,7 @@ for i, model in enumerate(models_to_evaluate):
         jit_sampling = jax.jit(sampling_fn)
     else:
         gaussian_model = load_ensemble(
-            model_name, task=dataset_name, algo='tatu_mopo'
+            model_name, task=dataset_name_ens, algo='tatu_mopo'
         )
         jit_sampling = predict_with_ensemble(
             dynamics_model=gaussian_model, num_traj=num_particles,
@@ -437,7 +450,7 @@ for i, model in enumerate(models_to_evaluate):
 
 # %%
 # Let's compute model predictions and model errors
-traj_indexes_to_evaluate = [8,4,5,6,7,1,2,9,10,11,12,13,14,15]
+traj_indexes_to_evaluate = [8,4,5,6,7,1,2,9,10,11,12,13,14,15,16,17,18,19,20,21]
 pred_trajectory_res = []
 num_splits = 5 # For vmapping accross the computation -> the lower the more parallelism
 rng_key = jax.random.PRNGKey(10)
@@ -541,8 +554,8 @@ for (_pred_traj, _traj_id) in pred_trajectory_res[:1]:
 
 # Make and histogram of the errors for all trajectories. By using the error at the end of the horizon
 fields_to_plot = names_states
-type_plot = "mean_of_error" # "mean_of_error" # or error_of_mean
-num_steps_error = 1 # -1 for all the steps
+type_plot = "error_of_mean" # "mean_of_error" # or error_of_mean
+num_steps_error = 2 # -1 for all the steps
 
 # Lets plot some of the forces
 per_subplot_figsize = (3,3)
@@ -576,15 +589,25 @@ fig, axs = plt.subplots(num_rows, num_cols,
                         constrained_layout=True,
 )
 
+# USe seaborn kdeplot for histogram
+import seaborn as sns
+
 axs = axs.flatten()
 for i, field_name in enumerate(fields_to_plot):
     ax = axs[i]
     for model_name, error_model in error_metrics_all.items():
         color = color_per_model[model_name]
-        ax.hist(error_model[field_name], 
-                label=model_name,
-                color=color, alpha=0.5
+        sns.kdeplot(np.log(error_model[field_name]), 
+                    label=model_name,
+                    color=color, alpha=0.5,
+                    ax=ax,
+                    fill=True
         )
+        # ax.hist(error_model[field_name], 
+        #         label=model_name,
+        #         color=color, alpha=0.5,
+        #         # bins=50
+        # )
     ax.set_xlabel(f"Error {field_name}")
     ax.set_ylabel("Frequency")
     ax.grid(True)
