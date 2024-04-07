@@ -529,7 +529,7 @@ class FakeEnv_SDE_Trunc:
         # Compute the threshold for truncation
         unc_dict = self.compute_threshold_truncation()
 
-        self.threshold = self.compute_threshold_from_uncertainty(
+        self.threshold, self.max_uncertainty = self.compute_threshold_from_uncertainty(
             unc_dict,
             quantity_name=self.model['threshold_decision_var'],
             threshold_quantile=self.model['unc_cvar_coef']
