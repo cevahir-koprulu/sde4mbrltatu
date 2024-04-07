@@ -800,7 +800,7 @@ def train_general_nsdes(
             ckpt_model.write_checkpoint_and_log_data(save_dict, metrics_save)
 
         # Check if we need to stop the training
-        best_step = ckpt_model.get_best_step()
+        best_step = ckpt_model.get_latest_step()
         best_step_epochs = best_step // num_batches
         if (curr_epoch - best_step_epochs) > model_training_config.get('early_stopping_epochs', -1):
             tqdm.write("Early stopping")
