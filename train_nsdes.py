@@ -319,7 +319,7 @@ def fill_gaps_in_config(
     # Default diffusion loss terms
     loss_diffusion = loss_config["loss_diffusion"]
     loss_diffusion["diff_loss_config"]["cvx_coeff_loss_type"] = "quad_inv"
-    loss_diffusion["diff_loss_config"]["min_grad_density"] = 1.0e-3
+    loss_diffusion["diff_loss_config"]["min_grad_density"] = 1.0e-6
     # loss_diffusion["diff_loss_config"]["weight_diff_loss"]["gradient_loss"] = 0
     loss_diffusion["diff_loss_config"]["weight_min_grad_density"]= 1000.0
     if "cvx_coeff_config" not in loss_diffusion:
@@ -802,7 +802,7 @@ def train_general_nsdes(
         # Check if we need to stop the training
         best_step = ckpt_model.get_latest_step()
         best_step_epochs = best_step // num_batches
-        if (curr_epoch - best_step_epochs) > model_training_config.get('early_stopping_epochs', -1):
+        if (curr_epoch - best_step_epochs) > model_training_config.get('early_stopping_epochs', np.inf):
             tqdm.write("Early stopping")
             break
 

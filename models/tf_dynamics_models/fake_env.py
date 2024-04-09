@@ -479,6 +479,7 @@ class FakeEnv_SDE_Trunc:
                 sampler_fn(state=_x, control=_u, rng_key=_rng)
             pred_states, pred_feats = \
                 jax.vmap(_temp_sampler)(x, u, rng)
+            pred_feats["diff_density"] = pred_feats["diff_density"][...,None]
 
             # Get the diffusion term
             name_diff = self.model['threshold_decision_var'] # diffusion_value
@@ -757,6 +758,8 @@ class FakeEnv_SDE_Trunc:
         cvar = np.array([np.mean(distr_quantity[distr_quantity[:,i] >= var[i],i])\
             for i in range(var.shape[0])])
         print(f"\nThreshold cvar value for {quantity_name} at {threshold_quantile*100}th percentile: \n {cvar}\n")
+        if threshold_quantile >= 1:
+            return max_unc[quantity_name][-1] * 1.1, max_unc[quantity_name][-1]
         return cvar[-1], max_unc[quantity_name][-1]
 
     def _get_logprob(self, x, means, variances):
