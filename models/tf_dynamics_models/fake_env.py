@@ -480,6 +480,10 @@ class FakeEnv_SDE_Trunc:
             pred_states, pred_feats = \
                 jax.vmap(_temp_sampler)(x, u, rng)
             pred_feats["diff_density"] = pred_feats["diff_density"][...,None]
+            next_pred_states = pred_states[:, :, 1, :]
+            mean_next_states = jax.numpy.mean(next_pred_states, axis=1)
+            dist_discr = next_pred_states - jax.numpy.expand_dims(mean_next_states, axis=1)
+            pred_feats["disc"] = jax.numpy.expand_dims(dist_discr, axis=2)
 
             # Get the diffusion term
             name_diff = self.model['threshold_decision_var'] # diffusion_value
@@ -489,7 +493,7 @@ class FakeEnv_SDE_Trunc:
 
             # Extract the next state and diffusion from the output trajectory
             pred_states = pred_states[:, :, 1, :]
-            diffusion_value = jax.numpy.abs(diffusion_value[:, :, -1, :])
+            diffusion_value = diffusion_value[:, :, -1, :]
 
             # transpose the output to be [num_particles, batch_size, obs_dim]
             pred_states = jax.lax.transpose(pred_states, (1, 0, 2))

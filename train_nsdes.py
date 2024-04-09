@@ -56,6 +56,7 @@ CONFIG_TRAINING_PATH = os.path.join(SDE_MODELS_PATH, "configs")
 def get_train_and_test_dataset(
     dataset_config : Dict[str, Any],
     min_traj_length: int,
+    return_normalized_max_fields: bool = False
 ) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, float]]:
     """ 
     Get the training and test data
@@ -88,6 +89,26 @@ def get_train_and_test_dataset(
     print("\nMin fields :\n", min_fields_dict)
     print("\nMean fields :\n", mean_fields_dict)
     print("\nMedian fields :\n", median_fields_dict)
+    return_scale_fields = mean_fields_dict
+    
+    # If we need to return the normalized fields
+    if return_normalized_max_fields:
+        trajectories = full_dataset['trajectories']
+        mean_data_fields = full_dataset['mean_data_fields']
+        scale_data_fields = full_dataset['scale_data_fields']
+        all_fields = {
+            name : np.concatenate([traj[name] for traj in trajectories], axis=0) \
+            for name in trajectories[0].keys() if name != "time"
+        }
+        all_fields_mormalized = {
+            name : (all_fields[name] - mean_data_fields[name]) / scale_data_fields[name] \
+            for name in all_fields
+        }
+        max_all_fields_normalized = {
+            name : np.max(np.abs(all_fields_mormalized[name])) \
+            for name in all_fields_mormalized
+        }
+        return_scale_fields = max_all_fields_normalized
     
     # Split the dataset
     test_ratio = dataset_config['test_ratio']
@@ -95,7 +116,7 @@ def get_train_and_test_dataset(
     train_data, test_data = split_dataset(
         full_dataset, test_ratio, seed_split
     )
-    return train_data, test_data, mean_fields_dict
+    return train_data, test_data, return_scale_fields
 
 def setup_system_dataset_and_nsde(
     config: Dict[str, Any],
@@ -146,7 +167,8 @@ def setup_system_dataset_and_nsde(
     # Load the dataset, while keeping only relevant fields
     dataset_config = config['dataset']
     train_data, test_data, max_fields = get_train_and_test_dataset(
-        dataset_config, min_traj_len
+        dataset_config, min_traj_len,
+        return_normalized_max_fields = dataset_config.get("normalize_data", True)
     )
     print("\nScaling Factor to Use :\n", max_fields)
     print("\n")
@@ -170,10 +192,11 @@ def setup_system_dataset_and_nsde(
         u_dependent = diff_args['diffusion_is_control_dependent']
         fields_to_scale = names_states + (names_controls if u_dependent else [])
         scaling_factor = np.array([max_fields[f] for f in fields_to_scale])
-        if dataset_config.get("normalize_data", True):
-            diff_args['feature_density_scaling'] = jnp.ones(scaling_factor.shape)
-        else:
-            diff_args['feature_density_scaling'] = scaling_factor
+        diff_args['feature_density_scaling'] = scaling_factor
+        # if dataset_config.get("normalize_data", True):
+        #     diff_args['feature_density_scaling'] = jnp.ones(scaling_factor.shape)
+        # else:
+        #     diff_args['feature_density_scaling'] = scaling_factor
         if "upper_bound_diffusion_scale" in diff_args:
             max_stds = diff_args.pop("upper_bound_diffusion_scale") * \
                 percentile_states
