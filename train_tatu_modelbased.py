@@ -60,7 +60,6 @@ def get_args():
     parser.add_argument("--real-ratio", type=float, default=0.05)
     parser.add_argument("--pessimism-coef", type=float, default=0.1)
     parser.add_argument("--beta", type=float, default=5.0)
-    # parser.add_argument("--unc-cvar-coef", type=float, default=0.95) # Right-hand tail of the uncertainty distribution. 1 refers to the max discrepancy/diffusion.
 
     parser.add_argument("--epoch", type=int, default=1000)
     parser.add_argument("--step-per-epoch", type=int, default=1000)
@@ -88,8 +87,8 @@ def get_args():
     parser.add_argument("--batch_size_trunc_thresh", type=int, default=100)
     parser.add_argument("--num_particles_trunc_thresh", type=int, default=5)
     parser.add_argument("--unc_cvar_coef", type=float, default=0.95)
-    parser.add_argument("--threshold_decision_var", type=str, 
-                        default='diffusion_value') # dad_based_diff, diff_density
+    parser.add_argument("--threshold_decision_var", type=str, default='diffusion_value', 
+                        choices=['dad_based_diff', 'dad_free_diff', 'diff_density', 'diffusion_value', 'disc'])
 
     args= parser.parse_args()
 
@@ -312,7 +311,7 @@ def train(args=get_args()):
     # log
     t0 = datetime.datetime.now().strftime("%m%d_%H%M%S")
     if "sde" in args.algo_name:
-        log_file = f"{args.sde_model_name}_diff={args.use_diffusion}_cvar={args.unc_cvar_coef}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}_pc={args.pessimism_coef}"+\
+        log_file = f"{args.sde_model_name}_diff={args.use_diffusion}_cvar={args.unc_cvar_coef}_tdv={args.threshold_decision_var}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}_pc={args.pessimism_coef}"+\
             f"_rr={args.real_ratio}_ep={args.epoch}_rfq={args.rollout_freq}_spe={args.step_per_epoch}_alr={args.actor_lr}_clr={args.critic_lr}_seed={args.seed}_{t0}"
     else:
         log_file = f'critic_num_{critic_num}_seed_{args.seed}_{t0}-{args.task.replace("-", "_")}_{args.algo_name}'
