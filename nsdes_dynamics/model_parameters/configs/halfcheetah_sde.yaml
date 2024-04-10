@@ -2,7 +2,7 @@
 # for the system dynamics.
 
 dataset:
-  name: halfcheetah-medium-expert-v2
+  name: halfcheetah-random-v2
   test_ratio: 0.2
   seed: 10 # For reproducibility of the split action.
   # Specify if we normalize input data before feeding it to the NNs 
@@ -58,10 +58,12 @@ model:
     args:
       # This assume the right order for name_states
       # TODO: Make this be a dictionary with value per state
-      # upper_bound_diffusion : [0.1,0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-      # 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-      upper_bound_diffusion : [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-      1, 1, 1, 1, 1, 1, 1, 1, 1]
+      # For random environment
+      upper_bound_diffusion : [0.1,0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
+      0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+      # For expert environment (medium or medium-replay or medium-expert)
+      # upper_bound_diffusion : [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
+      # 1, 1, 1, 1, 1, 1, 1, 1, 1]
       diffusion_is_control_dependent: True
       # ignore_heterogeneous_noise: False
       # Define the density NN
@@ -71,17 +73,17 @@ model:
         initial_value_range: 0.1
       # Noise scale learned by the model
       density_free_nn_params:
-        constant_scale: True
-        # activation_fn: swish
-        # layers_archictecture: [256, 256]
-        # initial_value_range: 0.001
+        # constant_scale: True
+        activation_fn: swish
+        layers_archictecture: []
+        initial_value_range: 0.001
 
 # Definitions for the loss function
 loss_definitions:
 
   # Relative importance of the different loss terms - data, reg and diff
   loss_weights:
-    RegLoss: 0.0001
+    RegLoss: 0.001
     DataLoss: 1.0
     VarBoundLoss: 0.001
 
@@ -105,9 +107,9 @@ loss_definitions:
       actuator_forces:
         mean: 0.0
         scale: 1
-      # density_free_nn:
-      #   mean: 0.0
-      #   scale: 1
+      density_free_nn:
+        mean: 0.0
+        scale: 1
   
   # Term to use for defining the loss on the distance aware diffusion term
   loss_diffusion:
@@ -132,7 +134,7 @@ loss_definitions:
       # Each delta_t is given by data_stepsize * rand(stepsize_range)
       stepsize_range: [1, 1]
       # The total horizon to use for the integration
-      horizon: 1
+      horizon: 2
       num_samples: 1
     # Sampling strategy for the validation on the testing data
     validation_sampling:
@@ -142,6 +144,9 @@ loss_definitions:
     discount_factor: 0.9
 
 model_optimizer:
+  # - name: add_decayed_weights
+  #   params:
+  #     weight_decay: 0.0001
   - name: scale_by_adam
   - name: linear_schedule
     scheduler: True
@@ -153,9 +158,9 @@ model_optimizer:
       transition_steps: 100000
 
 dad_optimizer:
-  # - name: add_decayed_weights
-    # params:
-    #   weight_decay: 0.0001
+  - name: add_decayed_weights
+    params:
+      weight_decay: 0.0001
   - name: scale_by_adam
   - name: linear_schedule
     scheduler: True
@@ -165,21 +170,21 @@ dad_optimizer:
       # Learning rate after transition_steps
       end_value: -0.001
       transition_steps: 100000
-  # - name: adaptive_grad_clip
-  #   params:
-  #     clipping: 0.01
+  - name: adaptive_grad_clip
+    params:
+      clipping: 0.01
 
 # Training parameters
 model_training:
   train_batch: 256 # The mini batch size for the training dataset
-  test_batch: 128 # The mini batch size for the training dataset
-  num_gradient_steps: 50 # The number of gradient steps to perform
-  test_freq: 2000 # The frequency at which to test the model
-  test_num_steps: 80 # The number of test batch iteration for validation
-  save_freq: 4000 # The frequency at which to save the model
+  test_batch: 256 # The mini batch size for the training dataset
+  num_gradient_steps: 100 # The number of gradient steps to perform, 500 for medium-replay
+  test_freq: 2000 # The frequency at which to test the model, 1000 medium-replay
+  test_num_steps: 100 # The number of test batch iteration for validation
+  save_freq: 4000 # The frequency at which to save the model, 2000 medium-replay
   dad_batch_size: 128 # The mini batch size for the dad term -> less than train_batch
   freq_update_dad: 1
-  early_stopping_epochs: 5 # Number of epochs to wait before stopping the training
+  early_stopping_epochs: 15 # Number of epochs to wait before stopping the training, 40 for medium-replay
 
 # Logging configuration
 track_n_checkpoints:
