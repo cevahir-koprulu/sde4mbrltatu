@@ -1,5 +1,5 @@
-# import os
-# os.environ["JAX_PLATFORM_NAME"] = "cpu"
+import os
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 import numpy as np
 
@@ -105,8 +105,10 @@ def load_diffusion_and_disc(
         # Compute the predictions
         pred_states, pred_feats = \
             jax.vmap(_temp_sampler)(x, u, rng)
+        pred_feats["diff_density"] = pred_feats["diff_density"][...,None]
         pred_states_pert, pred_feats_pert = \
             jax.vmap(_temp_sampler)(x, u_pert, rng_pert)
+        pred_feats_pert["diff_density"] = pred_feats_pert["diff_density"][...,None]
         # Let's remove the first state
         pred_states = pred_states[:, :, 1:, :]
         pred_states_pert = pred_states_pert[:, :, 1:, :]
@@ -214,7 +216,7 @@ def compute_discrepancy_on_full_dataset(
     return stacked_results
 
 dataset_name = "halfcheetah-medium-expert-v2"
-# dataset_name = "halfcheetah-random-v2"
+dataset_name = "halfcheetah-random-v2"
 dataset = load_dataset(dataset_name, verbose=False)
 
 # Define the models to evaluate hc_rand_v2_
@@ -243,11 +245,23 @@ models_to_evaluate = \
     #     "step" : -2, # The best model
     #     "task_name" : "halfcheetah-medium-expert-v2"
     # },
+    # { # A learned model
+    #     "model_name" : "hc_me_version1",
+    #     "plot_name" : "Learned v2",
+    #     "step" : -2, # The best model
+    #     "task_name" : "halfcheetah-medium-expert-v2"
+    # },
     { # A learned model
-        "model_name" : "hc_me_v11",
+        "model_name" : "hc_mr_new6___",
         "plot_name" : "Learned v2",
-        "step" : -2, # The best model
-        "task_name" : "halfcheetah-medium-expert-v2"
+        "step" : -1, # The best model
+        "task_name" : "halfcheetah-random-v2"
+    },
+    { # A learned model
+        "model_name" : "hc_rand_v13___",
+        "plot_name" : "Learned v3",
+        "step" : -1, # The best model
+        "task_name" : "halfcheetah-random-v2"
     },
 ]
 env_infos = get_environment_infos_from_name(dataset_name)
@@ -324,10 +338,17 @@ for model_name, discr_res in discrepancy_results.items():
     )
     axs = axs.flatten()
     for i, field_name in enumerate(fields_to_plot):
-        sns.histplot(
+        # sns.histplot(
+        #     discr_res[field_name][:, num_steps_error],
+        #     ax=axs[i], color=color_per_model[model_name],
+        #     label=model_name, kde=False,
+        #     # stat="density",
+        #     fill=True, alpha=0.8
+        # )
+        sns.kdeplot(
             discr_res[field_name][:, num_steps_error],
             ax=axs[i], color=color_per_model[model_name],
-            label=model_name, kde=False,
+            label=model_name,
             # stat="density",
             fill=True, alpha=0.8
         )
@@ -347,5 +368,6 @@ for model_name, discr_res in discrepancy_results.items():
 #     axs[i].set_xlabel(f"{field_name}")
 #     axs[i].grid(True)
 #     axs[i].legend()
+# 30 epochs medium-expert
 
 plt.show()

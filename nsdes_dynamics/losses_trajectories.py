@@ -290,12 +290,14 @@ def batch_sequence_loss(
 
     # Standard deviation of the SDE min and max values
     log_std_width = out_dict['log_std_width']
+    extra_reg = 0.0
     if 'VarBoundLoss' in pen_dict:
         var_bound_loss = pen_dict['VarBoundLoss'] * log_std_width
-        reg_val += var_bound_loss
+        extra_reg += var_bound_loss
 
     # loss_terms = {'DataLoss' : mean_loss, 'RegLoss' : reg_val}
     total_loss = mean_loss * pen_dict['DataLoss'] + reg_val * pen_dict['RegLoss']
+    total_loss += extra_reg
     # # jax.debug.print("Loss terms {}", pen_dict)
     # loss_arr = jnp.array([pen_dict[k] * v for k, v in loss_terms.items()])
     # total_loss = jnp.sum(loss_arr)

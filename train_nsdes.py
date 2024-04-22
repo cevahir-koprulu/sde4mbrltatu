@@ -39,7 +39,8 @@ from nsdes_dynamics.dataset_op import (
 from nsdes_dynamics.parameter_op import (
     create_gaussian_regularization_loss,
     load_yaml,
-    pretty_print_config
+    pretty_print_config,
+    modify_entry_from_config_with_dict
 )
 
 from nsdes_dynamics.logging_utils import (
@@ -161,7 +162,7 @@ def setup_system_dataset_and_nsde(
     # Get the minimum length of a trajectory from the sampling config
     sampling_config = config['loss_definitions']['loss_traj_train']["sampling"]
     min_traj_len = \
-        sampling_config["stepsize_range"][1] * (sampling_config["horizon"] + 1)
+        sampling_config["stepsize_range"][1] * (sampling_config["horizon_fit"] + 1)
     print("\nMinimum trajectory length: ", min_traj_len)
 
     # Load the dataset, while keeping only relevant fields
@@ -192,11 +193,12 @@ def setup_system_dataset_and_nsde(
         u_dependent = diff_args['diffusion_is_control_dependent']
         fields_to_scale = names_states + (names_controls if u_dependent else [])
         scaling_factor = np.array([max_fields[f] for f in fields_to_scale])
-        diff_args['feature_density_scaling'] = scaling_factor
-        # if dataset_config.get("normalize_data", True):
-        #     diff_args['feature_density_scaling'] = jnp.ones(scaling_factor.shape)
-        # else:
-        #     diff_args['feature_density_scaling'] = scaling_factor
+        # diff_args['feature_density_scaling'] = scaling_factor
+        if dataset_config.get("normalize_data", True):
+            diff_args['feature_density_scaling'] = jnp.ones(scaling_factor.shape)
+        else:
+            diff_args['feature_density_scaling'] = scaling_factor
+        # diff_args['feature_density_scaling'] = scaling_factor
         if "upper_bound_diffusion_scale" in diff_args:
             max_stds = diff_args.pop("upper_bound_diffusion_scale") * \
                 percentile_states
@@ -277,22 +279,6 @@ def fill_gaps_in_config(
         'nll_type': 'gauss_approx'
     }
     loss_config['loss_traj_train']['likehood'] = likehood_config
-    # likehood_config = loss_config['loss_traj_train']['likehood']
-    # use_data_scaling = likehood_config['use_data_scaling']
-    # specials_scale = likehood_config.get('specials', {})
-    # for state_n in specials_scale:
-    #     assert state_n in name_states, \
-    #         f"State {state_n} not found in {name_states}"
-    # scaling_factor = np.array(
-    #     [specials_scale.get(k, 1.0) for k in name_states]
-    # )
-    # if use_data_scaling:
-    #     # Extract the maximum values for the relevant fields
-    #     max_fields = config['extra_infos']['max_fields']
-    #     state_max = np.array([max_fields[k] for k in name_states])
-    #     scaling_factor = scaling_factor * state_max
-    # likehood_config['noise_scale'] = scaling_factor
-    # pretty_print_config(likehood_config)
 
     # Update the sampling strategy
     train_sampling = loss_config['loss_traj_train']['sampling']
@@ -494,7 +480,7 @@ def train_general_nsdes(
     sampling_config = loss_def['loss_traj_train']['sampling']
     integration_method = sampling_config['integration_method']
     num_samples = sampling_config['num_samples']
-    train_horizon = sampling_config['horizon']
+    train_horizon = sampling_config['horizon_fit']
     train_stepsize_range = sampling_config['stepsize_range']
     action_sampling_strategy = sampling_config['action_sampling_strategy']
 
@@ -673,7 +659,7 @@ def train_general_nsdes(
         validation_cfg = loss_def['loss_traj_train'].get(
             'validation_sampling', sampling_config
         )
-        horizon_test = validation_cfg['horizon']
+        horizon_test = validation_cfg['horizon_test']
         stepsize_range_test = validation_cfg['stepsize_range']
         sampling_strategy_test = validation_cfg['action_sampling_strategy']
 
@@ -838,9 +824,9 @@ if __name__ == "__main__":
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "--config",
+        "--task",
         type=str, required=True,
-        help="The name of the configuration file. Assumed to be in training_configs/"
+        help="The name of the task to train the model"
     )
     parser.add_argument(
         "--seed",
@@ -865,15 +851,23 @@ if __name__ == "__main__":
         nsdes_dynamics/model_parameters/nsde_config.yaml and save the output in 
         nsdes_dynamics/model_parameters/#nv_name#/output_name
     
-    python train_nsde.py --config nsde_config --seed 10 --output_name test
+    python train_nsde.py --task halfcheetah-random-v2 --seed 10 --output_name test
     """
     parser.epilog = EXAMPLE_CMD_LINE
     args = parser.parse_args()
 
     # Parse the config yaml file
-    config_yaml = args.config.split(".yaml")[0] + ".yaml"
+    config_yaml = "nsde_config.yaml"
     config_yaml = os.path.join(CONFIG_TRAINING_PATH, config_yaml)
     config_dict = load_yaml(config_yaml)
+
+    # Pop the environment specific configuration
+    specific_env_config = config_dict.pop("env_config", {})
+    modified_config = specific_env_config.get(args.task, {})
+    modify_entry_from_config_with_dict(config_dict, modified_config)
+
+    # Update the task name in the dataset
+    config_dict['dataset']['name'] = args.task
 
     # Setup the model
     _sde_model, _sde_params, _train_data, _test_data = \

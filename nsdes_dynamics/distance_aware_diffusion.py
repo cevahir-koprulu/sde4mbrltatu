@@ -86,6 +86,10 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
         #     density_based_diff
         total_diffusion = density_free_diff_term + \
             density_based_diff
+        # total_diffusion = total_diffusion * 0
+        # jax.debug.print("Density free \n{}.\nDensity based:{}\n",
+        #                 density_free_diff_term, density_based_diff
+        # )
 
         # Extra return dictionary
         ret_dict = {
@@ -203,7 +207,7 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
         term bounded by 1. ( 1 values should be attained outside the training)
         """
         if self.ignore_heterogeneous_noise:
-            return jnp.ones(self.num_states), jnp.zeros(self.num_states)
+            return jnp.zeros(self.num_states), jnp.zeros(self.num_states)
 
         heteregeneous_scaler = self.param(
             "heteregeneous_scaler",

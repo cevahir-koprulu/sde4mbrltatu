@@ -363,6 +363,7 @@ def predict_with_ensemble(dynamics_model, num_traj=1, deterministic=False):
 # Load a dataset
 dataset_name = "halfcheetah-medium-expert-v2"
 # dataset_name = "halfcheetah-random-v2"
+# dataset_name = "halfcheetah-medium-replay-v2"
 dataset_name_ens = "halfcheetah-medium-expert-v2"
 
 dataset = load_dataset(dataset_name, verbose=False)
@@ -382,34 +383,40 @@ dataset = load_dataset(dataset_name, verbose=False)
 models_to_evaluate = \
 [
     # { # A learned model
-    #     "model_name" : "hc_rand_v7",
-    #     "plot_name" : "Learned v1",
-    #     "step" : -2, # The best model
+    #     "model_name" : "hc_mr_new3_",
+    #     "plot_name" : "Learned v0",
+    #     "step" : -1, # The best model
     #     "task_name" : "halfcheetah-random-v2"
     # },
-    # { # A learned model
-    #     "model_name" : "hc_rand_v13___",
-    #     "plot_name" : "Learned v2",
-    #     "step" : -2, # The best model
-    #     "task_name" : "halfcheetah-random-v2"
-    # },
+    { # A learned model
+        "model_name" : "hc_mr_new6__",
+        "plot_name" : "Learned v1",
+        "step" : -2, # The best model
+        "task_name" : "halfcheetah-random-v2"
+    },
+    { # A learned model
+        "model_name" : "hc_rand_v13___",
+        "plot_name" : "Learned v2",
+        "step" : -2, # The best model
+        "task_name" : "halfcheetah-random-v2"
+    },
     # {
     #     "model_name" : "critic_num_2_seed_32_0128_215130-halfcheetah_medium_expert_v2_tatu_mopo",
     #     "plot_name" : "Ens",
     #     "is_gaussian" : True,
     # },
-    { # A learned model
-        "model_name" : "hc_me_v31",
-        "plot_name" : "Learned v1",
-        "step" : -2, # The best model
-        "task_name" : "halfcheetah-medium-expert-v2"
-    },
-    { # A learned model
-        "model_name" : "hc_me_v11",
-        "plot_name" : "Learned v2",
-        "step" : -2, # The best model
-        "task_name" : "halfcheetah-medium-expert-v2"
-    },
+    # { # A learned model
+    #     "model_name" : "hc_me_v7",
+    #     "plot_name" : "Learned v1",
+    #     "step" : -2, # The best model
+    #     "task_name" : "halfcheetah-medium-expert-v2"
+    # },
+    # { # A learned model
+    #     "model_name" : "hc_me_new",
+    #     "plot_name" : "Learned v2",
+    #     "step" : -2, # The best model
+    #     "task_name" : "halfcheetah-medium-expert-v2"
+    # },
 ]
 env_infos = get_environment_infos_from_name(dataset_name)
 data_stepsize = env_infos["stepsize"]
@@ -451,6 +458,7 @@ for i, model in enumerate(models_to_evaluate):
 # %%
 # Let's compute model predictions and model errors
 traj_indexes_to_evaluate = [8,4,5,6,7,1,2,9,10,11,12,13,14,15,16,17,18,19,20,21]
+traj_indexes_to_evaluate = [ i for i in range(100)]
 pred_trajectory_res = []
 num_splits = 5 # For vmapping accross the computation -> the lower the more parallelism
 rng_key = jax.random.PRNGKey(10)
@@ -481,6 +489,7 @@ for traj_id in traj_indexes_to_evaluate:
                                 "error_metrics" : error_metrics
                                 }
         print(f"Done\n")
+        # exit(0)
     pred_trajectory_res.append((temp_dict, traj_id))
 
 # %%
@@ -554,8 +563,8 @@ for (_pred_traj, _traj_id) in pred_trajectory_res[:1]:
 
 # Make and histogram of the errors for all trajectories. By using the error at the end of the horizon
 fields_to_plot = names_states
-type_plot = "error_of_mean" # "mean_of_error" # or error_of_mean
-num_steps_error = 2 # -1 for all the steps
+type_plot = "mean_of_error" # "mean_of_error" # or error_of_mean
+num_steps_error = -1 # -1 for all the steps
 
 # Lets plot some of the forces
 per_subplot_figsize = (3,3)
