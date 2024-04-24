@@ -93,20 +93,23 @@ def get_args():
     args= parser.parse_args()
 
     sde_model_list = {
-        'halfcheetah-medium-expert-v2': {
-            0 : 'hc_me_v31',
-            1 : 'hc_me_v30',
-            2: 'hc_me_v32__',
-            0 : 'hc_me_v5',
-        },
         'halfcheetah-random-v2': {
-            # 0 : 'hc_rand_v3__', # great
-            # 0 : 'hc_rand_v7', # Nice
-            # 0 : 'hc_rand_v12____', # Nice
-            # 0 : 'hc_rand_v13', # Nice
-            0 : 'hc_rand_v13___', # V. Nice -> latest yaml file
+            0: 'hc_rand_final'
+        },
+        'halfcheetah-medium-v2': {
+            0: 'hc_m_final',
+        },
+        'halfcheetah-medium-expert-v2': {
+            0: 'hc_me_final',
+        },
+        'hopper-random-v2':{
+            0 : 'hop_rand_v1',
+        },
+        'walker2d-random-v2':{
+            0 : 'wk_rand_v1',
         },
     }
+    
     args.sde_model_name = sde_model_list[args.task][args.sde_model_id]
     return args
 
@@ -311,7 +314,7 @@ def train(args=get_args()):
     # log
     t0 = datetime.datetime.now().strftime("%m%d_%H%M%S")
     if "sde" in args.algo_name:
-        log_file = f"{args.sde_model_name}_diff={args.use_diffusion}_cvar={args.unc_cvar_coef}_tdv={args.threshold_decision_var}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}_pc={args.pessimism_coef}"+\
+        log_file = f"{args.sde_model_name}_diff={args.use_diffusion}_cvar={args.unc_cvar_coef}_tdv={args.threshold_decision_var}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}"+\
             f"_rr={args.real_ratio}_ep={args.epoch}_rfq={args.rollout_freq}_spe={args.step_per_epoch}_alr={args.actor_lr}_clr={args.critic_lr}_seed={args.seed}_{t0}"
     else:
         log_file = f'critic_num_{critic_num}_seed_{args.seed}_{t0}-{args.task.replace("-", "_")}_{args.algo_name}'
