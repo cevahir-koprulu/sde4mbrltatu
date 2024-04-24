@@ -75,7 +75,7 @@ model:
       density_free_nn_params: 
         # constant_scale: True
         activation_fn: swish
-        layers_archictecture: [64, 64] #[256, 256]
+        layers_archictecture: [] #[256, 256]
         initial_value_range: 0.001
 
 # Definitions for the loss function
@@ -83,7 +83,7 @@ loss_definitions:
 
   # Relative importance of the different loss terms - data, reg and diff
   loss_weights:
-    RegLoss: 0.0001 # 0.0001
+    RegLoss: 0.0005 # 0.0001 # 0.0001
     DataLoss: 1.0
     VarBoundLoss: 0.001
     # VarBoundLoss: 10
@@ -116,14 +116,14 @@ loss_definitions:
   loss_diffusion:
     # Term use to compute the diffusion loss
     diff_loss_config:
-      ball_radius: 0.2 # Ball of the radius to use for the loss
+      ball_radius: 0.1 # Ball of the radius to use for the loss
       ball_num_samples: 20 # Number of saples around the training data
       weight_diff_loss: # How to weigt the different term in the loss
         cvx_coeff_loss: 1
-        density_value: 1
+        density_value: 0.001
         density_set_one: 0.0001
         local_convex_loss: 1
-        gradient_loss: 0 # default 0
+        gradient_loss: 0.00001 # default 0
 
   # Parameterization for training
   loss_traj_train:
@@ -145,6 +145,9 @@ loss_definitions:
     discount_factor: 0.9
 
 model_optimizer:
+  # - name: add_decayed_weights
+  #   params:
+  #     weight_decay: 0.0001
   - name: scale_by_adam
   - name: linear_schedule
     scheduler: True
@@ -156,9 +159,9 @@ model_optimizer:
       transition_steps: 100000
 
 dad_optimizer:
-  - name: add_decayed_weights
-    params:
-      weight_decay: 0.0001
+  # - name: add_decayed_weights
+  #   params:
+  #     weight_decay: 0.0001
   - name: scale_by_adam
   - name: linear_schedule
     scheduler: True
@@ -168,19 +171,19 @@ dad_optimizer:
       # Learning rate after transition_steps
       end_value: -0.001
       transition_steps: 100000
-  - name: adaptive_grad_clip
-    params:
-      clipping: 0.01
+  # - name: adaptive_grad_clip
+  #   params:
+  #     clipping: 0.01
 
 # Training parameters
 model_training:
-  train_batch: 64 # The mini batch size for the training dataset
+  train_batch: 128 # The mini batch size for the training dataset
   test_batch: 128 # The mini batch size for the training dataset
   num_gradient_steps: 65 # The number of gradient steps to perform
   test_freq: 2000 # The frequency at which to test the model
   test_num_steps: 80 # The number of test batch iteration for validation
   save_freq: 4000 # The frequency at which to save the model
-  dad_batch_size: 64 # The mini batch size for the dad term -> less than train_batch
+  dad_batch_size: 128 # The mini batch size for the dad term -> less than train_batch
   freq_update_dad: 1
   early_stopping_epochs: 20 # Number of epochs to wait before stopping the training
 
@@ -198,10 +201,15 @@ track_n_checkpoints:
 env_config:
   halfcheetah-medium-replay-v2:
     horizon_fit: 1
-    upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-      0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    # upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
+    #   0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
   
   halfcheetah-medium-expert-v2:
     horizon_fit: 1
-    upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-      1, 1, 1, 1, 1, 1, 1, 1, 1]
+    # upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
+    #   1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+  halfcheetah-medium-v2:
+    horizon_fit: 1
+    # upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
+    #   1, 1, 1, 1, 1, 1, 1, 1, 1]
