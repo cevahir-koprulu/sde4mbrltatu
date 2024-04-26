@@ -87,8 +87,9 @@ def get_args():
     parser.add_argument("--batch_size_trunc_thresh", type=int, default=100)
     parser.add_argument("--num_particles_trunc_thresh", type=int, default=5)
     parser.add_argument("--unc_cvar_coef", type=float, default=0.95)
-    parser.add_argument("--threshold_decision_var", type=str, default='diffusion_value', 
+    parser.add_argument("--threshold_decision_var", type=str, default='diff_density', 
                         choices=['dad_based_diff', 'dad_free_diff', 'diff_density', 'diffusion_value', 'disc'])
+    parser.add_argument("--model", type=str, default="")
 
     args= parser.parse_args()
 
@@ -109,8 +110,14 @@ def get_args():
             0 : 'wk_rand_v1',
         },
     }
-    
-    args.sde_model_name = sde_model_list[args.task][args.sde_model_id]
+
+    # Extract the model name
+    model_name = args.model
+    if len(model_name) > 0:
+        args.sde_model_name = model_name
+    else:
+        args.sde_model_name = sde_model_list[args.task][args.sde_model_id]
+
     return args
 
 def train(args=get_args()):
