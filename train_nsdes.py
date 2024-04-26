@@ -161,8 +161,12 @@ def setup_system_dataset_and_nsde(
 
     # Get the minimum length of a trajectory from the sampling config
     sampling_config = config['loss_definitions']['loss_traj_train']["sampling"]
+    sampling_config_test = config['loss_definitions']['loss_traj_train']["validation_sampling"]
     min_traj_len = \
         sampling_config["stepsize_range"][1] * (sampling_config["horizon_fit"] + 1)
+    min_traj_len_test = \
+        sampling_config_test["stepsize_range"][1] * (sampling_config_test["horizon_test"] + 1)
+    min_traj_len = max(min_traj_len, min_traj_len_test)
     print("\nMinimum trajectory length: ", min_traj_len)
 
     # Load the dataset, while keeping only relevant fields

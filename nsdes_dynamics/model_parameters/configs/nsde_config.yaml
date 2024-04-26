@@ -36,7 +36,7 @@ model:
         features: ["rootz", "cos_angles", "sin_angles", "velocities"]
         args:
           activation_fn: swish
-          layers_archictecture: [64, 64, 64]
+          layers_archictecture: [128, 128, 128]
           initial_value_range: 0.001
       # gravity_forces_nn:
       #   features: ["rootz", "cos_angles", "sin_angles"]
@@ -48,7 +48,7 @@ model:
         features: ["rootz", "cos_angles", "sin_angles", "velocities"]
         args:
           activation_fn: swish
-          layers_archictecture: [64, 64, 64]
+          layers_archictecture: [128, 128, 128]
           initial_value_range: 0.001
 
   diffusion_term:
@@ -60,10 +60,6 @@ model:
       # TODO: Make this be a dictionary with value per state
       upper_bound_diffusion : [0.1,0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
       0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-      # upper_bound_diffusion : [0.01,0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
-      # 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-      # upper_bound_diffusion : [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-      # 1, 1, 1, 1, 1, 1, 1, 1, 1]
       diffusion_is_control_dependent: True
       # ignore_heterogeneous_noise: True
       # Define the density NN
@@ -179,7 +175,7 @@ dad_optimizer:
 model_training:
   train_batch: 128 # The mini batch size for the training dataset
   test_batch: 128 # The mini batch size for the training dataset
-  num_gradient_steps: 65 # The number of gradient steps to perform
+  num_gradient_steps: 50 # The number of gradient steps to perform
   test_freq: 2000 # The frequency at which to test the model
   test_num_steps: 80 # The number of test batch iteration for validation
   save_freq: 4000 # The frequency at which to save the model
@@ -192,24 +188,78 @@ track_n_checkpoints:
   max_to_keep: 5 # Default (when commented) = every checkpoints are saved
   async_exec: False
   metrics: # List of possible values: 
-    Train/TotalLoss: 1.0
-    Test/StateLoss: 1.0
+    Train/StateLoss: 1.0
+    Test/StateLoss: 5.0
     # Test/TotalLoss: 1.0
-    Train/dad_based_diff: 1.0
 
 # Environment specific parameters
 env_config:
-  halfcheetah-medium-replay-v2:
+
+  ########################################################################
+  # Halfcheetah environment
+  # halfcheetah-random-v2:
+  #   horizon_fit: 1
+  halfcheetah-medium-v2:
     horizon_fit: 1
+    upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
     # upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-    #   0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    #   1, 1, 1, 1, 1, 1, 1, 1, 1]
+
+  halfcheetah-medium-replay-v2:
+    horizon_fit: 2
+    num_gradient_steps: 200 # Longer because of the dataset size
+    upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
   
   halfcheetah-medium-expert-v2:
     horizon_fit: 1
     # upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
     #   1, 1, 1, 1, 1, 1, 1, 1, 1]
 
-  halfcheetah-medium-v2:
-    horizon_fit: 1
-    # upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-    #   1, 1, 1, 1, 1, 1, 1, 1, 1]
+  ########################################################################
+  # Hopper environment
+  hopper-random-v2:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01,
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+  hopper-medium-replay-v2:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01,
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+  hopper-medium-v2:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01,
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+  hopper-medium-expert-v2:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01,
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+  ########################################################################
+  # Walker environment
+  walker2d-random-v2:
+    horizon_fit: 2
+    upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+  walker2d-medium-replay-v2:
+    horizon_fit: 2
+    num_gradient_steps: 200 # Longer because of the dataset size
+    upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+  walker2d-medium-v2:
+    horizon_fit: 2
+    # num_gradient_steps: 200
+    upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+  walker2d-medium-expert-v2:
+    horizon_fit: 2
+    # num_gradient_steps: 200
+    upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
