@@ -122,6 +122,9 @@ def get_args():
 
 def train(args=get_args()):
 
+    # Set numpy print options
+    np.set_printoptions(precision=3, floatmode='fixed')
+    
     # create env and dataset
     env = gym.make(args.task)
     dataset = d4rl.qlearning_dataset(env)

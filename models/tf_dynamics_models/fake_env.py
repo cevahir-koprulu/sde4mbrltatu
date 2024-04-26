@@ -859,7 +859,7 @@ class FakeEnv_SDE_Trunc:
                 penalty = np.linalg.norm(predicted_diffusion, axis=-1)
                 # penalty = np.max(penalty, axis=0)
                 penalty = np.mean(penalty, axis=0)
-                disc_sde = penalty
+                disc = penalty
 
             # Make the penalty a column vector
             penalty = np.expand_dims(penalty, 1)
@@ -873,7 +873,6 @@ class FakeEnv_SDE_Trunc:
             unpenalized_rewards = rewards
             penalized_rewards = rewards
             disc = 0
-            disc_sde = 0
 
         if return_single: # IN case no batch
             next_obs = next_obs[0]
@@ -883,11 +882,8 @@ class FakeEnv_SDE_Trunc:
             penalized_rewards = penalized_rewards[0]
             terminals = terminals[0]
 
-        ##  compute cumulative error and terminate some trajectories      
-        if not self.use_diffusion:
-            cumul_error += disc
-        else:
-            cumul_error += disc_sde
+        ##  compute cumulative error and terminate some trajectories  
+        cumul_error += disc
 
         # Check if the cumulative error is above the threshold
         unknown = np.where(cumul_error > threshold)
@@ -898,6 +894,7 @@ class FakeEnv_SDE_Trunc:
         info = {'mean': return_means, 'std': return_stds,
                 'log_prob': log_prob, 'dev': dev,
                 'unpenalized_rewards': unpenalized_rewards,
+                'disc': np.mean(disc),
                 'penalty': penalty, 'penalized_rewards': penalized_rewards,
                 'halt_num':halt_num,'halt_ratio':halt_ratio
         }

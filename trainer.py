@@ -47,20 +47,36 @@ class Trainer_modelbsed:
             self.algo.policy.train()
             with tqdm(total=self._step_per_epoch, desc=f"Epoch #{e}/{self._epoch}") as t:
                 while t.n < t.total:
+                    rollout_infos = []
                     if num_timesteps % self._rollout_freq == 0:
                         for i in range(10):
                             rollout_info = self.algo.rollout_transitions()
+                            rollout_info = { k : np.array(v) for k, v in rollout_info.items() }
+                            rollout_infos.append(rollout_info)
                         # self.logger.print(f'rollout_info: {rollout_info}')
-                        print('max_disc:',rollout_info['max_disc'])
-                        print('threshold:',rollout_info['threshold'])
-                        print('halt_num:',rollout_info['halt_num'])
-                        print('halt_ratio:',rollout_info['halt_ratio'])
+                        # if num_timesteps % self._log_freq == 0:
+                        #     print('max_disc:',rollout_info['max_disc'])
+                        #     print('threshold:',rollout_info['threshold'])
+                        #     print('halt_num:',rollout_info['halt_num'])
+                        #     print('halt_ratio:',rollout_info['halt_ratio'])
+                        #     print('Trunc Value:',rollout_info['disc'])
                     # update policy by sac
                     loss = self.algo.learn_policy()
                     t.set_postfix(**loss)
+                    # logs for rollout
+                    if len(rollout_infos) > 0:
+                        rollout_infos ={
+                            f"Infos/{k}" : np.mean([np.mean(info[k]) for info in rollout_infos]) \
+                                for k in rollout_infos[0].keys() \
+                                    if k not in ['max_disc', 'threshold']
+                        }
+                    else:
+                        rollout_infos = {}
                     # log
                     if num_timesteps % self._log_freq == 0:
                         for k, v in loss.items():
+                            self.logger.record(k, v, num_timesteps, printed=False)
+                        for k, v in rollout_infos.items():
                             self.logger.record(k, v, num_timesteps, printed=False)
                     num_timesteps += 1
                     t.update(1)
@@ -81,8 +97,10 @@ class Trainer_modelbsed:
             self.logger.record("eval/episode_reward_normal", ep_reward_mean_normal, num_timesteps, printed=False)
             self.logger.record("eval/max_episode_reward_normal", ep_reward_max_normal, num_timesteps, printed=False)
             self.logger.record("eval/min_episode_reward_normal", ep_reward_min_normal, num_timesteps, printed=False)
-            self.logger.print(f"Epoch #{e}: episode_reward: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}, episode_length: {ep_length_mean:.3f} ± {ep_length_std:.3f} rollout_info: {rollout_info}")
+            self.logger.print(f"Epoch #{e}: episode_reward: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}, episode_length: {ep_length_mean:.3f} ± {ep_length_std:.3f}")
             self.logger.print(f"Epoch #{e}: episode_reward_normal: {ep_reward_mean_normal:.1f} ± {ep_reward_std_normal:.1f}")
+            for k, v in rollout_info.items():
+                self.logger.print(f"Rollout Info: {k}: {v}")
 
             if ep_reward_mean > best_eval_mean:
                 best_eval_mean = ep_reward_mean

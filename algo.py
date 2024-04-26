@@ -211,7 +211,10 @@ class TATU_model_based():
                     "threshold":threshold,
                     "halt_num":[],
                     "halt_ratio":[],
-                    "stop_ratio":[]}
+                    "stop_ratio":[],
+                    "disc": [],
+                    "mean_rew" : [], 
+                    }
 
         reward_stats = defaultdict(list)
         penalty_stats = defaultdict(list)
@@ -238,11 +241,13 @@ class TATU_model_based():
             halt_info["halt_num"].append(infos["halt_num"])
             halt_info["halt_ratio"].append(infos["halt_ratio"])
             halt_info["stop_ratio"].append(stop_ratio)
+            halt_info["disc"].append(infos["disc"])
+            halt_info["mean_rew"].append(reward_stats["mean"][-1])
         
-        print("Reward Stats:\n", reward_stats)
-        print("Penalty Stats:\n", penalty_stats)
+        # print("Reward Stats:\n", {k : np.array(v) for k, v in reward_stats.items()})
+        # print("Penalty Stats:\n", {k : np.array(v) for k, v in penalty_stats.items()})
         # print("Error Stats:\n", error_stats)
-        print("Halt Info:\n", halt_info)
+        # print("Halt Info:\n", halt_info)
         del reward_stats, penalty_stats, error_stats
         
         return halt_info
