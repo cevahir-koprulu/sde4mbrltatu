@@ -203,19 +203,21 @@ env_config:
     horizon_fit: 1
     upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
     0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
-    # upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-    #   1, 1, 1, 1, 1, 1, 1, 1, 1]
 
   halfcheetah-medium-replay-v2:
-    horizon_fit: 2
-    num_gradient_steps: 200 # Longer because of the dataset size
+    horizon_fit: 1
+    num_gradient_steps: 500 # Longer because of the dataset size
     upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
-    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+      0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    ball_radius: 0.3
+    early_stopping_epochs: 300
+    VarBoundLoss: 0.00001
   
   halfcheetah-medium-expert-v2:
     horizon_fit: 1
-    # upper_bound_diffusion: [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 
-    #   1, 1, 1, 1, 1, 1, 1, 1, 1]
+    train_batch: 256
+    upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
 
   ########################################################################
   # Hopper environment
@@ -263,3 +265,26 @@ env_config:
     # num_gradient_steps: 200
     upper_bound_diffusion: [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
     0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+
+  Hopper-v3-Low-1000-neorl:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01,
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400
+
+  Walker2d-v3-Low-1000-neorl:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400
+
+  HalfCheetah-v3-Low-1000-neorl:
+    horizon_fit: 2
+    ball_radius: 0.3
+    VarBoundLoss: 0.00001
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400

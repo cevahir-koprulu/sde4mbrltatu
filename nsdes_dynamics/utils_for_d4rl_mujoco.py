@@ -97,6 +97,25 @@ ENVS_INFOS = {
             ["Cbthigh", "Cbshin", "Cbfoot", "Cfthigh", "Cfshin", "Cffoot"],
         'stepsize': 0.05,
     },
+    'halfcheetah-v3': {
+        'max_episode_steps': 1000,
+        'names_states': \
+            ['rootx', 'rootz', 'rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh',
+             'fshin', 'ffoot',
+             # Velocities
+             'Vrootx', 'Vrootz', 'Arooty', 'Abthigh', 'Abshin', 'Abfoot',
+             'Afthigh', 'Afshin', 'Affoot'
+            ],
+        'names_positions': \
+            ['rootx', 'rootz', 'rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh',
+             'fshin', 'ffoot'
+            ],
+        'names_angles': \
+            ['rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh', 'fshin', 'ffoot'],
+        'names_controls': \
+            ["Cbthigh", "Cbshin", "Cbfoot", "Cfthigh", "Cfshin", "Cffoot"],
+        'stepsize': 0.05,
+    },
     'hopper': {
         'max_episode_steps': 1000,
         'names_states': \
@@ -106,6 +125,21 @@ ENVS_INFOS = {
             ],
         'names_positions': \
             ['rootz', 'rooty', 'thigh', 'leg', 'foot'],
+        'names_angles': \
+            ['rooty', 'thigh', 'leg', 'foot'],
+        'names_controls': \
+            ["Cthigh", "Cleg", "Cfoot"],
+        'stepsize': 0.008,
+    },
+    'hopper-v3': {
+        'max_episode_steps': 1000,
+        'names_states': \
+            ['rootx', 'rootz', 'rooty', 'thigh', 'leg', 'foot',
+             # Velocities
+            'Vrootx', 'Vrootz', 'Arooty', 'Athigh', 'Aleg', 'Afoot'
+            ],
+        'names_positions': \
+            ['rootx', 'rootz', 'rooty', 'thigh', 'leg', 'foot'],
         'names_angles': \
             ['rooty', 'thigh', 'leg', 'foot'],
         'names_controls': \
@@ -123,6 +157,25 @@ ENVS_INFOS = {
             ],
         'names_positions': \
             ['rootz', 'rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh',
+             'fshin', 'ffoot'
+            ],
+        'names_angles': \
+            ['rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh', 'fshin', 'ffoot'],
+        'names_controls': \
+            ["Cbthigh", "Cbshin", "Cbfoot", "Cfthigh", "Cfshin", "Cffoot"],
+        'stepsize': 0.008,
+    },
+    'walker2d-v3': {
+        'max_episode_steps': 1000,
+        'names_states': \
+            ['rootx', 'rootz', 'rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh',
+             'fshin', 'ffoot',
+             # Velocities
+             'Vrootx', 'Vrootz', 'Arooty', 'Abthigh', 'Abshin', 'Abfoot',
+             'Afthigh', 'Afshin', 'Affoot'
+            ],
+        'names_positions': \
+            ['rootx', 'rootz', 'rooty', 'bthigh', 'bshin', 'bfoot', 'fthigh',
              'fshin', 'ffoot'
             ],
         'names_angles': \
@@ -170,7 +223,11 @@ def get_environment_infos_from_name(env_name):
     """
     Get the information about the environment from the name of the environment.
     """
-    env_infos = ENVS_INFOS.get(env_name.split('-')[0], None)
+    split_envs = env_name.split('-')
+    name_env = split_envs[0].lower()
+    if "neorl" in env_name:
+        name_env = name_env + "-" + split_envs[1]
+    env_infos = ENVS_INFOS.get(name_env,  None)
     if env_infos is None:
         raise ValueError(f"The environment {env_name} is not supported.")
     return env_infos
@@ -202,7 +259,7 @@ def download_dataset_from_url(dataset_url):
         raise IOError("Failed to download dataset from %s" % dataset_url)
     return dataset_filepath
 
-def get_dataset(env_name):
+def load_d4rl_dataset(env_name):
     dataset_url = DATASET_URLS[env_name]
     h5path = download_dataset_from_url(dataset_url)
 
@@ -213,6 +270,53 @@ def get_dataset(env_name):
                 data_dict[k] = dataset_file[k][:]
             except ValueError as e:  # try loading as a scalar
                 data_dict[k] = dataset_file[k][()]
+
+    return data_dict
+
+def load_neorl_dataset(env_name, return_env = False):
+    import neorl
+    # Let's split it into env, dara_type, and traj_num
+    task, version, data_type, traj_num, _ = env_name.split('-')
+    traj_num = int(traj_num)
+    env = neorl.make(task+'-'+version)
+    train_data, _ = env.get_dataset(data_type=data_type, train_num=traj_num, need_val=False)
+    dataset = {}
+    dataset["observations"] = train_data["obs"]
+    dataset["actions"] = train_data["action"]
+    dataset["next_observations"] = train_data["next_obs"]
+    dataset["rewards"] = train_data["reward"]
+    dataset["terminals"] = train_data["done"]
+    terminals_float = np.zeros_like(dataset["rewards"])
+    for i in range(len(terminals_float) - 1):
+        if np.linalg.norm(dataset["observations"][i + 1] -
+                            dataset["next_observations"][i]
+                            ) > 1e-6:
+            terminals_float[i] = 1
+        else:
+            terminals_float[i] = 0
+    terminals_float[-1] = 1
+    dataset["timeouts"] = terminals_float
+    MIN_SCORES ={
+        "Hopper": 5,
+        "Walker2d": 1,
+        "HalfCheetah": -298,
+    }[task]
+    MAX_SCORES ={
+        "Hopper": 3294,
+        "Walker2d": 5143,
+        "HalfCheetah": 12284,
+    }[task]
+    if return_env:
+        # Define the normalized score as a function of env
+        env.get_normalized_score = lambda score: (score - MIN_SCORES) / (MAX_SCORES - MIN_SCORES)
+        return dataset, env
+    return dataset
+    
+def get_dataset(env_name):
+    if 'neorl' in env_name:
+        data_dict = load_neorl_dataset(env_name)
+    else:
+        data_dict = load_d4rl_dataset(env_name)
     # Run a few quick sanity checks
     for key in ['observations', 'actions', 'rewards', 'terminals', 'timeouts']:
         assert key in data_dict, 'Dataset is missing key %s' % key
@@ -224,6 +328,10 @@ def get_dataset(env_name):
     if data_dict['terminals'].shape == (N_samples, 1):
         data_dict['terminals'] = data_dict['terminals'][:, 0]
     assert data_dict['terminals'].shape == (N_samples,), 'Terminals has wrong shape: %s' % (
+        str(data_dict['rewards'].shape))
+    if data_dict['timeouts'].shape == (N_samples, 1):
+        data_dict['timeouts'] = data_dict['timeouts'][:, 0]
+    assert data_dict['timeouts'].shape == (N_samples,), 'Timeouts has wrong shape: %s' % (
         str(data_dict['rewards'].shape))
     
     return data_dict
@@ -267,7 +375,7 @@ def get_q_learning_dataset(env_name):
         else:
             final_timestep = (episode_step == _max_episode_steps - 1)
         if final_timestep:
-            # Skip this transition and don't apply terminals on the last step of an episode
+            # Skip this traenv = neorl.make(task+'-'+version)nsition and don't apply terminals on the last step of an episode
             episode_step = 0
             continue
         if done_bool or final_timestep:
@@ -353,6 +461,8 @@ def load_dataset_for_nsdes(
     
     # Load the original dataset
     data_dict = get_dataset(env_name)
+    print("Timeouts shape", data_dict['timeouts'].shape)
+    print("Terminals shape", data_dict['terminals'].shape)
     episode_ends = np.argwhere(
         (data_dict['timeouts']==1) + (data_dict['terminals']==1)
     ).reshape(-1)

@@ -26,7 +26,8 @@ from logger import Logger
 
 from nsdes_dynamics.utils_for_d4rl_mujoco import (
     get_formatted_dataset_for_nsde_training,
-    get_environment_infos_from_name
+    get_environment_infos_from_name,
+    load_neorl_dataset
 )
 
 
@@ -126,8 +127,11 @@ def train(args=get_args()):
     np.set_printoptions(precision=3, floatmode='fixed')
     
     # create env and dataset
-    env = gym.make(args.task)
-    dataset = d4rl.qlearning_dataset(env)
+    if "neorl" in args.task:
+        dataset, env = load_neorl_dataset(args.task, return_env=True)
+    else:
+        env = gym.make(args.task)
+        dataset = d4rl.qlearning_dataset(env)
     args.obs_shape = env.observation_space.shape
     args.action_dim = np.prod(env.action_space.shape)
 
@@ -245,9 +249,13 @@ def train(args=get_args()):
     )
     
     # create MOPO algo
-    task = args.task.split('-')[0]
+    task = args.task.split('-')[0].lower()
     import_path = f"static_fns.{task}"
-    static_fns = importlib.import_module(import_path).StaticFns
+    if "neorl" in args.task:
+        static_fns = importlib.import_module(import_path).StaticFnsNeoRL
+    else:
+        static_fns = importlib.import_module(import_path).StaticFns
+        
     if args.algo_name == "tatu_mopo" or 'sde' in args.algo_name:
         sac_policy = SACPolicy(
         actor,

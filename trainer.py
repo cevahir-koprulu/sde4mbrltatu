@@ -89,7 +89,7 @@ class Trainer_modelbsed:
             ep_reward_min = np.min(eval_info["eval/episode_reward"])
             # Normalized score mean and std
             ep_reward_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
-            ep_reward_std_normal = self.eval_env.get_normalized_score(ep_reward_std)*100
+            ep_reward_std_normal = self.eval_env.get_normalized_score(ep_reward_mean+ep_reward_std)*100 - ep_reward_mean_normal
             ep_reward_max_normal = self.eval_env.get_normalized_score(ep_reward_max)*100
             ep_reward_min_normal = self.eval_env.get_normalized_score(ep_reward_min)*100
             self.logger.record("eval/episode_reward", ep_reward_mean, num_timesteps, printed=False)
@@ -110,12 +110,14 @@ class Trainer_modelbsed:
 
         self.logger.print(f"last_eval_mean: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}")
         last_eval_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
-        last_eval_std_normal = self.eval_env.get_normalized_score(ep_reward_std)*100       
+        last_eval_std_normal = self.eval_env.get_normalized_score(ep_reward_mean+ep_reward_std)*100 - last_eval_mean_normal    
         self.logger.print(f"last_eval_mean_normal: {last_eval_mean_normal:.1f} ± {last_eval_std_normal:.1f}")    
 
         self.logger.print(f"best_eval_mean: {best_eval_mean:.3f} ± {std_best_mean:.3f}")
-        best_eval_mean_normal = d4rl.get_normalized_score(self.eval_env.unwrapped.spec.id,best_eval_mean)*100
-        std_best_mean_normal = d4rl.get_normalized_score(self.eval_env.unwrapped.spec.id,std_best_mean)*100
+        best_eval_mean_normal = self.eval_env.get_normalized_score(best_eval_mean)*100
+        std_best_mean_normal = self.eval_env.get_normalized_score(best_eval_mean + std_best_mean)*100 - best_eval_mean_normal
+        # best_eval_mean_normal = d4rl.get_normalized_score(self.eval_env.unwrapped.spec.id,best_eval_mean)*100
+        # std_best_mean_normal = d4rl.get_normalized_score(self.eval_env.unwrapped.spec.id,std_best_mean)*100
         self.logger.print(f"best_eval_mean_normal: {best_eval_mean_normal:.1f} ± {std_best_mean_normal:.1f}")
 
         self.logger.print("total time: {:.3f}s".format(time.time() - start_time))
