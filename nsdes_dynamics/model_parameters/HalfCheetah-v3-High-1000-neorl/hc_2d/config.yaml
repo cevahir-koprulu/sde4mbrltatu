@@ -1,0 +1,389 @@
+dad_optimizer:
+- name: scale_by_adam
+- name: linear_schedule
+  params:
+    end_value: -0.001
+    init_value: -0.001
+    transition_steps: 100000
+  scheduler: true
+dataset:
+  name: HalfCheetah-v3-High-1000-neorl
+  normalize_data: true
+  seed: 10
+  test_ratio: 0.2
+env_name: HalfCheetah-v3-High-1000-neorl
+extra_infos:
+  is_diff_distance_aware: true
+  max_fields:
+    Abfoot: 3.3333804607391357
+    Abshin: 3.182577610015869
+    Abthigh: 2.551166296005249
+    Affoot: 3.8651442527770996
+    Afshin: 2.892711877822876
+    Afthigh: 4.406794548034668
+    Arooty: 4.06309175491333
+    Cbfoot: 7.299200534820557
+    Cbshin: 4.021214962005615
+    Cbthigh: 14.280905723571777
+    Cffoot: 4.445693016052246
+    Cfshin: 5.635737419128418
+    Cfthigh: 13.610940933227539
+    Vrootx: 4.8852715492248535
+    Vrootz: 6.819615840911865
+    bfoot: 2.367445468902588
+    bshin: 2.137949228286743
+    bthigh: 2.1521363258361816
+    ffoot: 2.364645004272461
+    fshin: 2.4006309509277344
+    fthigh: 3.763218641281128
+    rootx: 1.8897403478622437
+    rooty: 11.200448989868164
+    rootz: 10.190324783325195
+  names_controls:
+  - Cbthigh
+  - Cbshin
+  - Cbfoot
+  - Cfthigh
+  - Cfshin
+  - Cffoot
+  names_positions:
+  - rootx
+  - rootz
+  - rooty
+  - bthigh
+  - bshin
+  - bfoot
+  - fthigh
+  - fshin
+  - ffoot
+  names_states:
+  - rootx
+  - rootz
+  - rooty
+  - bthigh
+  - bshin
+  - bfoot
+  - fthigh
+  - fshin
+  - ffoot
+  - Vrootx
+  - Vrootz
+  - Arooty
+  - Abthigh
+  - Abshin
+  - Abfoot
+  - Afthigh
+  - Afshin
+  - Affoot
+loss_definitions:
+  loss_diffusion:
+    cvx_coeff_config:
+      cvx_coeff_params:
+        coef_init: 100.0
+        is_constant: true
+      is_cvx_coeff_learned: true
+    diff_loss_config:
+      ball_num_samples: 20
+      ball_radius: 0.3
+      cvx_coeff_loss_type: quad_inv
+      min_grad_density: 1.0e-06
+      weight_diff_loss:
+        cvx_coeff_loss: 1
+        density_set_one: 0.0001
+        density_value: 0.001
+        gradient_loss: 1.0e-05
+        local_convex_loss: 1
+      weight_min_grad_density: 1000.0
+  loss_reg:
+    default_mean: 0
+    default_scale: 0
+    specials:
+      actuator_forces:
+        mean: 0.0
+        scale: 1
+      coriolis_forces:
+        mean: 0.0
+        scale: 1
+      gravity_forces:
+        mean: 0.0
+        scale: 1
+      position_correction:
+        mean: 0.0
+        scale: 1
+      residual_forces:
+        mean: 0.0
+        scale: 1
+  loss_traj_train:
+    discount_factor: 0.9
+    likehood:
+      discount_factor: 0.9
+      nll_type: gauss_approx
+      noise_scale:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+    num_substeps: 1
+    sampling:
+      action_sampling_strategy:
+        default: first
+      horizon_fit: 2
+      integration_method: euler_maruyama
+      num_samples: 1
+      stepsize_range:
+      - 1
+      - 1
+    validation_sampling:
+      action_sampling_strategy:
+        default: first
+      horizon_test: 5
+      stepsize_range:
+      - 1
+      - 1
+  loss_weights:
+    DataLoss: 1.0
+    RegLoss: 0.0005
+    VarBoundLoss: 1.0e-05
+model:
+  diffusion_term:
+    args:
+      _num_controls: 6
+      _num_states: 18
+      default_feature_values: []
+      density_free_nn_params:
+        activation_fn: swish
+        initial_value_range: 0.001
+        layers_archictecture: []
+      density_nn_params:
+        activation_fn: swish
+        initial_value_range: 0.1
+        layers_archictecture:
+        - 64
+        - 64
+      diffusion_is_control_dependent: true
+      feature_density_scaling:
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      - 1.0
+      feature_parameters_to_use: []
+      upper_bound_diffusion:
+      - 0.01
+      - 0.01
+      - 0.01
+      - 0.01
+      - 0.01
+      - 0.01
+      - 0.01
+      - 0.01
+      - 0.01
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+      - 0.1
+    model_name: BasicDistanceAwareDiffusionTerm
+  drift_term:
+    args:
+      _mean_controls:
+      - 0.18512697517871857
+      - 0.06627751886844635
+      - -0.016538988798856735
+      - 0.21094687283039093
+      - 0.24534842371940613
+      - -0.16278736293315887
+      _mean_states:
+      - 214.88182067871094
+      - -0.013389833271503448
+      - 0.0693991631269455
+      - 0.08594700694084167
+      - -0.06900372356176376
+      - 0.027950922027230263
+      - 0.1913149505853653
+      - 0.08760077506303787
+      - -0.08865813165903091
+      - 8.630674362182617
+      - -0.053872641175985336
+      - -0.08377203345298767
+      - 0.10754670947790146
+      - 0.022739414125680923
+      - -0.020073235034942627
+      - 0.10135670006275177
+      - 0.1524157077074051
+      - 0.20850808918476105
+      _names_angles:
+      - rooty
+      - bthigh
+      - bshin
+      - bfoot
+      - fthigh
+      - fshin
+      - ffoot
+      _names_controls:
+      - Cbthigh
+      - Cbshin
+      - Cbfoot
+      - Cfthigh
+      - Cfshin
+      - Cffoot
+      _names_positions:
+      - rootx
+      - rootz
+      - rooty
+      - bthigh
+      - bshin
+      - bfoot
+      - fthigh
+      - fshin
+      - ffoot
+      _names_states:
+      - rootx
+      - rootz
+      - rooty
+      - bthigh
+      - bshin
+      - bfoot
+      - fthigh
+      - fshin
+      - ffoot
+      - Vrootx
+      - Vrootz
+      - Arooty
+      - Abthigh
+      - Abshin
+      - Abfoot
+      - Afthigh
+      - Afshin
+      - Affoot
+      _scale_controls:
+      - 0.9427850842475891
+      - 0.8490012884140015
+      - 0.8957342505455017
+      - 0.77248615026474
+      - 0.8122737407684326
+      - 0.8203468322753906
+      _scale_states:
+      - 132.59063720703125
+      - 0.10070347785949707
+      - 0.6341457962989807
+      - 0.49155691266059875
+      - 0.4572575092315674
+      - 0.36637386679649353
+      - 0.35780540108680725
+      - 0.5588748455047607
+      - 0.37185195088386536
+      - 2.1928839683532715
+      - 0.8250867128372192
+      - 2.697763204574585
+      - 10.871782302856445
+      - 10.67841911315918
+      - 7.985571384429932
+      - 6.6819868087768555
+      - 12.564583778381348
+      - 7.809844493865967
+      actuator_forces_nn:
+        args:
+          activation_fn: swish
+          initial_value_range: 0.001
+          layers_archictecture:
+          - 128
+          - 128
+          - 128
+        features:
+        - rootz
+        - cos_angles
+        - sin_angles
+        - velocities
+      coriolis_forces_nn:
+        args:
+          activation_fn: swish
+          initial_value_range: 0.001
+          layers_archictecture:
+          - 128
+          - 128
+          - 128
+        features:
+        - rootz
+        - cos_angles
+        - sin_angles
+        - velocities
+      gravity_forces_nn: {}
+      mass_matrix_nn: {}
+      residual_forces_nn:
+        args:
+          activation_fn: swish
+          initial_value_range: 0.001
+          layers_archictecture:
+          - 200
+          - 200
+          - 200
+        features:
+        - rootz
+        - cos_angles
+        - sin_angles
+        - velocities
+        - controls
+    model_name: RBD_Drift
+model_optimizer:
+- name: scale_by_adam
+- name: linear_schedule
+  params:
+    end_value: -0.001
+    init_value: -0.01
+    transition_steps: 100000
+  scheduler: true
+model_training:
+  dad_batch_size: 128
+  early_stopping_epochs: 300
+  freq_update_dad: 1
+  num_gradient_steps: 400
+  save_freq: 4000
+  test_batch: 128
+  test_freq: 2000
+  test_num_steps: 80
+  train_batch: 128
+seed: 100
+track_n_checkpoints:
+  async_exec: false
+  max_to_keep: 5
+  metrics:
+    Test/StateLoss: 5.0
+    Train/StateLoss: 1.0
