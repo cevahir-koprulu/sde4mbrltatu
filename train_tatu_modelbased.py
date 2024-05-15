@@ -73,6 +73,7 @@ def get_args():
     )
 
     parser.add_argument("--critic_num", type=int, default=2)
+    parser.add_argument("--eval_fake_env", default=False, action='store_true')
 
     # SDE arguments
     parser.add_argument(
@@ -350,7 +351,8 @@ def train(args=get_args()):
         rollout_freq=args.rollout_freq,
         logger=logger,
         log_freq=args.log_freq,
-        eval_episodes=args.eval_episodes
+        eval_episodes=args.eval_episodes,
+        eval_fake_env=args.eval_fake_env,
     )
 
     logger.print(f"use diffusion: {args.use_diffusion} rollout_length: {args.rollout_length:d} reward_penalty_coef: {args.reward_penalty_coef:.2f} pessimism_coef: {args.pessimism_coef:.2f} min_q_weight :{args.beta} real_ratio:{args.real_ratio}")
