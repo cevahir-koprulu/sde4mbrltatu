@@ -17,7 +17,8 @@ class Trainer_modelbsed:
         rollout_freq,
         logger,
         log_freq,
-        eval_episodes=10
+        eval_episodes=10,
+        eval_fake_env = False
     ):
         self.algo = algo
         self.eval_env = eval_env
@@ -29,6 +30,7 @@ class Trainer_modelbsed:
         self.logger = logger
         self._log_freq = log_freq
         self._eval_episodes = eval_episodes
+        self.eval_fake_env = eval_fake_env
 
     def train_dynamics(self):
         self.algo.learn_dynamics()
@@ -82,46 +84,98 @@ class Trainer_modelbsed:
                     t.update(1)
             
             # evaluate current policy
-            eval_info = self._evaluate()
-            ep_reward_mean, ep_reward_std = np.mean(eval_info["eval/episode_reward"]), np.std(eval_info["eval/episode_reward"])
-            ep_length_mean, ep_length_std = np.mean(eval_info["eval/episode_length"]), np.std(eval_info["eval/episode_length"])
-            ep_reward_max = np.max(eval_info["eval/episode_reward"])
-            ep_reward_min = np.min(eval_info["eval/episode_reward"])
-            # Normalized score mean and std
-            ep_reward_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
-            ep_reward_std_normal = self.eval_env.get_normalized_score(ep_reward_mean+ep_reward_std)*100 - ep_reward_mean_normal
-            ep_reward_max_normal = self.eval_env.get_normalized_score(ep_reward_max)*100
-            ep_reward_min_normal = self.eval_env.get_normalized_score(ep_reward_min)*100
-            self.logger.record("eval/episode_reward", ep_reward_mean, num_timesteps, printed=False)
-            self.logger.record("eval/episode_length", ep_length_mean, num_timesteps, printed=False)
-            self.logger.record("eval/episode_reward_normal", ep_reward_mean_normal, num_timesteps, printed=False)
-            self.logger.record("eval/max_episode_reward_normal", ep_reward_max_normal, num_timesteps, printed=False)
-            self.logger.record("eval/min_episode_reward_normal", ep_reward_min_normal, num_timesteps, printed=False)
-            self.logger.print(f"Epoch #{e}: episode_reward: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}, episode_length: {ep_length_mean:.3f} ± {ep_length_std:.3f}")
-            self.logger.print(f"Epoch #{e}: episode_reward_normal: {ep_reward_mean_normal:.1f} ± {ep_reward_std_normal:.1f}")
+            eval_info, obs_inits = self._evaluate()
+            ep_reward_mean, ep_reward_std = self.log_eval_info(eval_info, e, num_timesteps)
+            if self.eval_fake_env:
+                fake_eval_info = self._fake_evaluate(obs_inits)
+                fake_ep_reward_mean, fake_ep_reward_std = \
+                    self.log_eval_info(fake_eval_info, e, num_timesteps, pref='fake_')
+            
+            # ep_reward_mean, ep_reward_std = np.mean(eval_info["eval/episode_reward"]), np.std(eval_info["eval/episode_reward"])
+            # ep_length_mean, ep_length_std = np.mean(eval_info["eval/episode_length"]), np.std(eval_info["eval/episode_length"])
+            # ep_reward_max = np.max(eval_info["eval/episode_reward"])
+            # ep_reward_min = np.min(eval_info["eval/episode_reward"])
+
+            # # Normalized score mean and std
+            # ep_reward_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
+            # ep_reward_std_normal = self.eval_env.get_normalized_score(ep_reward_mean+ep_reward_std)*100 - ep_reward_mean_normal
+            # ep_reward_max_normal = self.eval_env.get_normalized_score(ep_reward_max)*100
+            # ep_reward_min_normal = self.eval_env.get_normalized_score(ep_reward_min)*100
+            # self.logger.record("eval/episode_reward", ep_reward_mean, num_timesteps, printed=False)
+            # self.logger.record("eval/episode_length", ep_length_mean, num_timesteps, printed=False)
+            # self.logger.record("eval/episode_reward_normal", ep_reward_mean_normal, num_timesteps, printed=False)
+            # self.logger.record("eval/max_episode_reward_normal", ep_reward_max_normal, num_timesteps, printed=False)
+            # self.logger.record("eval/min_episode_reward_normal", ep_reward_min_normal, num_timesteps, printed=False)
+            # self.logger.print(f"Epoch #{e}: episode_reward: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}, episode_length: {ep_length_mean:.3f} ± {ep_length_std:.3f}")
+            # self.logger.print(f"Epoch #{e}: episode_reward_normal: {ep_reward_mean_normal:.1f} ± {ep_reward_std_normal:.1f}")
+
             for k, v in rollout_info.items():
                 self.logger.print(f"Rollout Info: {k}: {v}")
 
             if ep_reward_mean > best_eval_mean:
                 best_eval_mean = ep_reward_mean
                 std_best_mean = ep_reward_std
+                if self.eval_fake_env:
+                    fake_best_eval_mean = fake_ep_reward_mean
+                    fake_std_best_mean = fake_ep_reward_std
+
             # save policy
             torch.save(self.algo.policy.state_dict(), os.path.join(self.logger.writer.get_logdir(), "policy.pth"))
 
-        self.logger.print(f"last_eval_mean: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}")
-        last_eval_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
-        last_eval_std_normal = self.eval_env.get_normalized_score(ep_reward_mean+ep_reward_std)*100 - last_eval_mean_normal    
-        self.logger.print(f"last_eval_mean_normal: {last_eval_mean_normal:.1f} ± {last_eval_std_normal:.1f}")    
+        self.print_end_info(ep_reward_mean, ep_reward_std, best_eval_mean, std_best_mean)
+        if self.eval_fake_env:
+            self.print_end_info(
+                fake_ep_reward_mean, fake_ep_reward_std, 
+                fake_best_eval_mean, fake_std_best_mean,
+                pref='fake_'
+            )
+        # self.logger.print(f"last_eval_mean: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}")
+        # last_eval_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
+        # last_eval_std_normal = self.eval_env.get_normalized_score(ep_reward_mean+ep_reward_std)*100 - last_eval_mean_normal    
+        # self.logger.print(f"last_eval_mean_normal: {last_eval_mean_normal:.1f} ± {last_eval_std_normal:.1f}")    
 
-        self.logger.print(f"best_eval_mean: {best_eval_mean:.3f} ± {std_best_mean:.3f}")
-        best_eval_mean_normal = self.eval_env.get_normalized_score(best_eval_mean)*100
-        std_best_mean_normal = self.eval_env.get_normalized_score(best_eval_mean + std_best_mean)*100 - best_eval_mean_normal
-        # best_eval_mean_normal = d4rl.get_normalized_score(self.eval_env.unwrapped.spec.id,best_eval_mean)*100
-        # std_best_mean_normal = d4rl.get_normalized_score(self.eval_env.unwrapped.spec.id,std_best_mean)*100
-        self.logger.print(f"best_eval_mean_normal: {best_eval_mean_normal:.1f} ± {std_best_mean_normal:.1f}")
+        # self.logger.print(f"best_eval_mean: {best_eval_mean:.3f} ± {std_best_mean:.3f}")
+        # best_eval_mean_normal = self.eval_env.get_normalized_score(best_eval_mean)*100
+        # std_best_mean_normal = self.eval_env.get_normalized_score(best_eval_mean + std_best_mean)*100 - best_eval_mean_normal
+        # # best_eval_mean_normal = d4rl.get_normalized_score(self.eval_env.unwrapped.spec.id,best_eval_mean)*100
+        # # std_best_mean_normal = d4rl.get_normalized_score(self.eval_env.unwrapped.spec.id,std_best_mean)*100
+        # self.logger.print(f"best_eval_mean_normal: {best_eval_mean_normal:.1f} ± {std_best_mean_normal:.1f}")
 
         self.logger.print("total time: {:.3f}s".format(time.time() - start_time))
         # self.logger.print("number of critics: {:d}".format(self.algo.policy.critic_num))
+
+    def print_end_info(self, ep_reward_mean, ep_reward_std, best_eval_mean, std_best_mean, pref=''):
+        self.logger.print(f"{pref}last_eval_mean: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}")
+        last_eval_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
+        last_eval_std_normal = self.eval_env.get_normalized_score(ep_reward_mean+ep_reward_std)*100 - last_eval_mean_normal
+        self.logger.print(f"{pref}last_eval_mean_normal: {last_eval_mean_normal:.1f} ± {last_eval_std_normal:.1f}")
+        
+        self.logger.print(f"{pref}best_eval_mean: {best_eval_mean:.3f} ± {std_best_mean:.3f}")
+        best_eval_mean_normal = self.eval_env.get_normalized_score(best_eval_mean)*100
+        std_best_mean_normal = self.eval_env.get_normalized_score(best_eval_mean + std_best_mean)*100 - best_eval_mean_normal
+        self.logger.print(f"{pref}best_eval_mean_normal: {best_eval_mean_normal:.1f} ± {std_best_mean_normal:.1f}")
+
+    def log_eval_info(self, eval_info, e, num_timesteps, pref=''):
+        eval_name = "eval"
+        ep_reward_mean, ep_reward_std = np.mean(eval_info[f"{eval_name}/episode_reward"]), np.std(eval_info[f"{eval_name}/episode_reward"])
+        ep_length_mean, ep_length_std = np.mean(eval_info[f"{eval_name}/episode_length"]), np.std(eval_info[f"{eval_name}/episode_length"])
+        ep_reward_max = np.max(eval_info[f"{eval_name}/episode_reward"])
+        ep_reward_min = np.min(eval_info[f"{eval_name}/episode_reward"])
+
+        # Normalized score mean and std
+        eval_name = f"{pref}eval"
+        ep_reward_mean_normal = self.eval_env.get_normalized_score(ep_reward_mean)*100
+        ep_reward_std_normal = self.eval_env.get_normalized_score(ep_reward_mean+ep_reward_std)*100 - ep_reward_mean_normal
+        ep_reward_max_normal = self.eval_env.get_normalized_score(ep_reward_max)*100
+        ep_reward_min_normal = self.eval_env.get_normalized_score(ep_reward_min)*100
+        self.logger.record(f"{eval_name}/episode_reward", ep_reward_mean, num_timesteps, printed=False)
+        self.logger.record(f"{eval_name}/episode_length", ep_length_mean, num_timesteps, printed=False)
+        self.logger.record(f"{eval_name}/episode_reward_normal", ep_reward_mean_normal, num_timesteps, printed=False)
+        self.logger.record(f"{eval_name}/max_episode_reward_normal", ep_reward_max_normal, num_timesteps, printed=False)
+        self.logger.record(f"{eval_name}/min_episode_reward_normal", ep_reward_min_normal, num_timesteps, printed=False)
+        self.logger.print(f"Epoch #{e}: {pref}episode_reward: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}, {pref}episode_length: {ep_length_mean:.3f} ± {ep_length_std:.3f}")
+        self.logger.print(f"Epoch #{e}: {pref}episode_reward_normal: {ep_reward_mean_normal:.1f} ± {ep_reward_std_normal:.1f}")
+        return ep_reward_mean, ep_reward_std
 
     def _evaluate(self):
         self.algo.policy.eval()
@@ -129,6 +183,7 @@ class Trainer_modelbsed:
         eval_ep_info_buffer = []
         num_episodes = 0
         episode_reward, episode_length = 0, 0
+        obs_inits = [obs]
 
         while num_episodes < self._eval_episodes:
             action = self.algo.policy.sample_action(obs, deterministic=True)
@@ -145,11 +200,53 @@ class Trainer_modelbsed:
                 num_episodes +=1
                 episode_reward, episode_length = 0, 0
                 obs = self.eval_env.reset()
+                obs_inits.append(obs)
         
         return {
             "eval/episode_reward": [ep_info["episode_reward"] for ep_info in eval_ep_info_buffer],
             "eval/episode_length": [ep_info["episode_length"] for ep_info in eval_ep_info_buffer]
+        }, obs_inits[:self._eval_episodes]
+    
+    def _fake_evaluate(self, obs_inits):
+        self.algo.policy.eval()
+        eval_ep_info_buffer = []
+        num_episodes = 0
+        episode_reward, episode_length = 0, 0
+        episode_diff_value = 0
+        rng = None
+        for obs_init in obs_inits:
+            obs = np.array(obs_init)
+            # _iter_num = 0
+            for _iter_num in range(self.algo.max_steps_per_env):
+                action = self.algo.policy.sample_action(obs, deterministic=True)
+                action = np.array(action)
+                next_obs, reward, terminal, infos = self.algo.fake_env.step_eval(
+                    obs, action, rng=rng
+                )
+                rng = infos['next_rng']
+                diff_value = infos['diff_value']
+                episode_reward += reward
+                episode_length += 1
+                episode_diff_value += diff_value
+                obs = next_obs
+                if terminal or _iter_num == self.algo.max_steps_per_env-1:
+                    eval_ep_info_buffer.append(
+                        {   "episode_reward": episode_reward,
+                            "episode_length": episode_length,
+                            "episode_diff_value": episode_diff_value
+                         }
+                    )
+                    num_episodes +=1
+                    episode_reward, episode_length = 0, 0
+                    episode_diff_value = 0
+                    break
+        return {
+            "eval/episode_reward": [ep_info["episode_reward"] for ep_info in eval_ep_info_buffer],
+            "eval/episode_length": [ep_info["episode_length"] for ep_info in eval_ep_info_buffer],
+            "eval/episode_diff_value": [ep_info["episode_diff_value"] for ep_info in eval_ep_info_buffer]
         }
+        
+        
 
 class Trainer_modelfree:
     def __init__(

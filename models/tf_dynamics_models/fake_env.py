@@ -503,6 +503,7 @@ class FakeEnv_SDE_Trunc:
 
         # Jit the prediction function
         self._predict = jax.jit(_my_pred_fn, backend=backend)
+        # self._predict_step = jax.jit(_my_pred_fn, backend="cpu")
 
         def augmented_pred_fn(x, u , rng):
             """ Wrapper around prediction function to varying 
@@ -539,6 +540,45 @@ class FakeEnv_SDE_Trunc:
             quantity_name=self.model['threshold_decision_var'],
             threshold_quantile=self.model['unc_cvar_coef']
         )
+
+    def step_eval(self, obs, act, rng=None):
+        """ Simulate a step function in the environment.
+        """
+        assert len(obs.shape) == len(act.shape)
+        # print('obs:',obs.shape, 'act:',act.shape)
+        if rng is None:
+            rng = self.next_rng
+
+        return_single = False
+        if len(obs.shape) == 1:
+            obs = obs[None]
+            act = act[None]
+            return_single = True
+        
+        # Do the prediction
+        pred_state, diff_value, next_rng = \
+            self._predict(obs, act, rng)
+        pred_state = np.array(pred_state)
+
+        # Get the mean as the predicted state
+        pred_state_mean = np.mean(pred_state, axis=0)
+        diff_value_mean = np.mean(diff_value, axis=0)
+
+        # Get the reward and done
+        rewards = self.config.single_step_reward(obs, act, pred_state_mean)
+        terminals = self.config.termination_fn(obs, act, pred_state_mean)
+
+        # Get the next state
+        next_obs = pred_state_mean
+
+        if return_single:
+            next_obs = next_obs[0]
+            rewards = rewards[0]
+            terminals = terminals[0]
+            diff_value_mean = diff_value_mean[0]
+        
+        return next_obs, rewards, terminals, \
+            {"next_rng": next_rng, "diff_value": diff_value_mean}
 
     def compute_threshold_truncation(
         self,
