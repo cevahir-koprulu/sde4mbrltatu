@@ -72,7 +72,7 @@ class MOPO():
             train_outputs,
             batch_size=self._batch_size,
             max_epochs=max_epochs,
-            holdout_ratio=0.2
+            holdout_ratio=0.2,
         )
         return loss
 

@@ -118,10 +118,10 @@ class Trainer_modelbsed:
                 if self.eval_fake_env:
                     fake_best_eval_mean = fake_ep_reward_mean
                     fake_std_best_mean = fake_ep_reward_std
-
+                torch.save(self.algo.policy.state_dict(), os.path.join(self.logger.writer.get_logdir(), "best_policy.pth"))      
             # save policy
-            torch.save(self.algo.policy.state_dict(), os.path.join(self.logger.writer.get_logdir(), "policy.pth"))
-
+            # torch.save(self.algo.policy.state_dict(), os.path.join(self.logger.writer.get_logdir(), "policy.pth"))
+            
         self.print_end_info(ep_reward_mean, ep_reward_std, best_eval_mean, std_best_mean)
         if self.eval_fake_env:
             self.print_end_info(
@@ -218,7 +218,10 @@ class Trainer_modelbsed:
             obs = np.array(obs_init)
             # _iter_num = 0
             for _iter_num in range(self.algo.max_steps_per_env):
-                action = self.algo.policy.sample_action(obs, deterministic=True)
+                try:
+                    action = self.algo.policy.sample_action(obs, deterministic=True)
+                except:
+                    pass
                 action = np.array(action)
                 next_obs, reward, terminal, infos = self.algo.fake_env.step_eval(
                     obs, action, rng=rng

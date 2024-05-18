@@ -166,6 +166,40 @@ class FakeEnv:
 
         return next_obs, rewards, terminals, info
 
+    def step_eval(self, obs, act, rng=None):
+        """ Simulate a step function in the environment.
+        """
+        assert len(obs.shape) == len(act.shape)
+        return_single = False
+        if len(obs.shape) == 1:
+            obs = obs[None]
+            act = act[None]
+            return_single = True
+        
+        inputs = np.concatenate((obs, act), axis=-1)
+        ensemble_model_means, ensemble_model_vars = \
+            self.model.predict(inputs, factored=True)
+        pred_state_mean = np.mean(ensemble_model_means[:,:,1:], axis=0) + obs
+        ensemble_model_stds = np.sqrt(ensemble_model_vars)
+        uncertainty = np.amax(
+                    np.linalg.norm(ensemble_model_stds, axis=2), axis=0
+                )
+        # Get the reward and done
+        rewards = self.config.single_step_reward(obs, act, pred_state_mean)
+        terminals = self.config.termination_fn(obs, act, pred_state_mean)
+
+        # Get the next state
+        next_obs = pred_state_mean
+
+        if return_single:
+            next_obs = next_obs[0]
+            rewards = rewards[0]
+            terminals = terminals[0]
+            uncertainty = uncertainty[0]
+        
+        return next_obs, rewards, terminals, \
+            {"next_rng": None, "diff_value": uncertainty}
+
     def close(self):
         pass
 
@@ -309,7 +343,8 @@ class FakeEnv_tatu:
                 'log_prob': log_prob, 'dev': dev,
                 'unpenalized_rewards': unpenalized_rewards,
                 'penalty': penalty, 'penalized_rewards': penalized_rewards,
-                'halt_num':halt_num,'halt_ratio':halt_ratio
+                'halt_num':halt_num,'halt_ratio':halt_ratio,
+                'disc': np.mean(penalty),
             }
         return next_obs, penalized_rewards, terminals, cumul_error, info
 
@@ -374,6 +409,40 @@ class FakeEnv_tatu:
         dists = np.linalg.norm(diffs, axis=2)
         disc = np.max(dists, axis=0)
         return disc
+
+    def step_eval(self, obs, act, rng=None):
+        """ Simulate a step function in the environment.
+        """
+        assert len(obs.shape) == len(act.shape)
+        return_single = False
+        if len(obs.shape) == 1:
+            obs = obs[None]
+            act = act[None]
+            return_single = True
+        
+        inputs = np.concatenate((obs, act), axis=-1)
+        ensemble_model_means, ensemble_model_vars = \
+            self.model.predict(inputs, factored=True)
+        pred_state_mean = np.mean(ensemble_model_means[:,:,1:], axis=0) + obs
+        ensemble_model_stds = np.sqrt(ensemble_model_vars)
+        uncertainty = np.amax(
+                    np.linalg.norm(ensemble_model_stds, axis=2), axis=0
+                )
+        # Get the reward and done
+        rewards = self.config.single_step_reward(obs, act, pred_state_mean)
+        terminals = self.config.termination_fn(obs, act, pred_state_mean)
+
+        # Get the next state
+        next_obs = pred_state_mean
+
+        if return_single:
+            next_obs = next_obs[0]
+            rewards = rewards[0]
+            terminals = terminals[0]
+            uncertainty = uncertainty[0]
+        
+        return next_obs, rewards, terminals, \
+            {"next_rng": None, "diff_value": uncertainty}
 
 
 class FakeEnv_SDE_Trunc:
