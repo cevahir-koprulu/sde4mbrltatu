@@ -273,7 +273,35 @@ env_config:
     early_stopping_epochs: 300
     num_gradient_steps: 400
 
+  Hopper-v3-Medium-1000-neorl:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01,
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400
+
+  Hopper-v3-High-1000-neorl:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01,
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400
+
   Walker2d-v3-Low-1000-neorl:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400
+  
+  Walker2d-v3-Medium-1000-neorl:
+    horizon_fit: 2
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400
+
+  Walker2d-v3-High-1000-neorl:
     horizon_fit: 2
     upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
     0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
@@ -281,6 +309,24 @@ env_config:
     num_gradient_steps: 400
 
   HalfCheetah-v3-Low-1000-neorl:
+    horizon_fit: 2
+    ball_radius: 0.3
+    VarBoundLoss: 0.00001
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400
+
+  HalfCheetah-v3-Medium-1000-neorl:
+    horizon_fit: 2
+    ball_radius: 0.3
+    VarBoundLoss: 0.00001
+    upper_bound_diffusion : [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 
+    0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]
+    early_stopping_epochs: 300
+    num_gradient_steps: 400
+  
+  HalfCheetah-v3-High-1000-neorl:
     horizon_fit: 2
     ball_radius: 0.3
     VarBoundLoss: 0.00001
