@@ -94,22 +94,72 @@ def get_args():
     parser.add_argument("--model", type=str, default="")
 
     args= parser.parse_args()
-
+    
     sde_model_list = {
+        # D4RL
         'halfcheetah-random-v2': {
             0: 'hc_rand_final'
         },
         'halfcheetah-medium-v2': {
             0: 'hc_m_final',
         },
+        'halfcheetah-medium-replay-v2': {
+            0: 'hc_mr_final',
+        },
         'halfcheetah-medium-expert-v2': {
             0: 'hc_me_final',
         },
         'hopper-random-v2':{
-            0 : 'hop_rand_v1',
+            0 : 'hop_rand_final',
+        },
+        'hopper-medium-v2':{
+            0 : 'hop_m_final',
+        },
+        'hopper-medium-replay-v2':{
+            0 : 'hop_mr_final',
+        },
+        'hopper-medium-expert-v2':{
+            0: 'hop_me_final',
         },
         'walker2d-random-v2':{
-            0 : 'wk_rand_v1',
+            0 : 'wk_rand_final',
+        },
+        'walker2d-medium-v2':{
+            0 : 'wk_m_final',
+        },
+        'walker2d-medium-replay-v2':{
+            0 : 'wk_mr_final',
+        },
+        'walker2d-medium-expert-v2':{
+            0 : 'wk_me_final',
+        },
+        # NeoRL
+        'HalfCheetah-v3-Low-1000-neorl':{
+            0: 'hc_l_final',
+        },
+        'HalfCheetah-v3-Medium-1000-neorl':{
+            0: 'hc_m_final',
+        },
+        'HalfCheetah-v3-High-1000-neorl':{
+            0: 'hc_h_final',
+        },
+        'Hopper-v3-Low-1000-neorl':{
+            0: 'hop_l_final',
+        },
+        'Hopper-v3-Medium-1000-neorl':{
+            0: 'hop_m_final',
+        },
+        'Hopper-v3-High-1000-neorl':{
+            0: 'hop_h_final',
+        },
+        'Walker2d-v3-Low-1000-neorl':{
+            0: 'wk_l_final',
+        },
+        'Walker2d-v3-Medium-1000-neorl':{
+            0: 'wk_m_final',
+        },
+        'Walker2d-v3-High-1000-neorl':{
+            0: 'wk_h_final',
         },
     }
 
@@ -159,7 +209,7 @@ def train(args=get_args()):
     actor_backbone = MLP(input_dim=np.prod(args.obs_shape), hidden_dims=[256, 256])
     critic1_backbone = MLP(input_dim=np.prod(args.obs_shape)+args.action_dim, hidden_dims=[256, 256])
     critic2_backbone = MLP(input_dim=np.prod(args.obs_shape)+args.action_dim, hidden_dims=[256, 256])
-    dist = DiagGaussian(
+    dist = DiagGaussian( 
         latent_dim=getattr(actor_backbone, "output_dim"),
         output_dim=args.action_dim,
         unbounded=True, 
@@ -336,7 +386,7 @@ def train(args=get_args()):
         log_file = f"{args.sde_model_name}_diff={args.use_diffusion}_cvar={args.unc_cvar_coef}_tdv={args.threshold_decision_var}_rl={args.rollout_length}_rpc={args.reward_penalty_coef}"+\
             f"_rr={args.real_ratio}_ep={args.epoch}_rfq={args.rollout_freq}_spe={args.step_per_epoch}_alr={args.actor_lr}_clr={args.critic_lr}_seed={args.seed}_{t0}"
     else:
-        log_file = f'critic_num_{critic_num}_seed_{args.seed}_{t0}-{args.task.replace("-", "_")}_{args.algo_name}'
+        log_file = f'critic_num_{critic_num}_seed_{args.seed}_{t0}_pc={args.pessimism_coef}-{args.task.replace("-", "_")}_{args.algo_name}'
     log_path = os.path.join(args.logdir, args.task, args.algo_name, log_file)
     writer = SummaryWriter(log_path)
     writer.add_text("args", str(args))
