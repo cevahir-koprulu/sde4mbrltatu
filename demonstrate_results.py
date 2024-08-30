@@ -4,19 +4,46 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
+
+MIN_SCORES ={
+    "hopper": 5,
+    "walker2d": 1,
+    "halfcheetah": -298,
+}
+
+MAX_SCORES ={
+    "hopper": 3294,
+    "walker2d": 5143,
+    "halfcheetah": 12284,
+}
+
+def get_normalized_score(env_name, score):
+    return (score - MIN_SCORES[env_name]) / (MAX_SCORES[env_name] - MIN_SCORES[env_name])*100
+
 def parse_str_for_number(entry):
     first_digit = entry[0] if entry[0].isdigit() else ''
     last_digit = entry[-1] if entry[-1].isdigit() and len(entry)>1 else ''
     return first_digit + entry[1:-1] + last_digit
 
-def parse_progress_file(filepath, horizon=10, num_epochs=1000, has_fake_env_results=False):
-    with open(filepath, 'r') as f:
+def parse_progress_file(env_name, filepath, horizon=10, num_epochs=1000, fake_env_results_type=0, compute_normalized_score_for_fake_eval=False):
+    progress_f = os.path.join(filepath, "progress.txt")
+    with open(progress_f, 'r') as f:
         lines = f.readlines()
 
     normalized_rewards_mean = np.zeros(num_epochs)
     normalized_rewards_std = np.zeros(num_epochs)
-    fake_normalized_rewards_mean = np.zeros(num_epochs)
-    fake_normalized_rewards_std = np.zeros(num_epochs)
+    fake_normalized_rewards_mean = None
+    fake_normalized_rewards_std = None
+    if fake_env_results_type == 1:
+        fake_normalized_rewards_mean = np.zeros(num_epochs)
+        fake_normalized_rewards_std = np.zeros(num_epochs)
+    elif fake_env_results_type == 3:
+        fake_eval_f = os.path.join(filepath, "fake_eval.txt")
+        with open(fake_eval_f, 'r') as f:
+            fake_eval_lines = f.readlines()
+        fake_normalized_rewards_mean = float(fake_eval_lines[0].split()[1])
+        fake_normalized_rewards_std = float(fake_eval_lines[0].split()[3])
+        
     truncation = np.zeros((num_epochs,horizon), dtype=int)
     uncertainty_estimate = np.zeros((num_epochs,horizon))
     mean_rewards = np.zeros((num_epochs,horizon))
@@ -30,7 +57,7 @@ def parse_progress_file(filepath, horizon=10, num_epochs=1000, has_fake_env_resu
                 ep_no += 1
                 normalized_rewards_mean[ep_no] = float(line_splitted[3])
                 normalized_rewards_std[ep_no] = float(line_splitted[5])
-            elif has_fake_env_results and "fake_episode_reward_normal:" in line_splitted:
+            elif fake_env_results_type == 1 and "fake_episode_reward_normal:" in line_splitted:
                 fake_normalized_rewards_mean[ep_no] = float(line_splitted[3])
                 fake_normalized_rewards_std[ep_no] = float(line_splitted[5])
         elif "halt_num:" in line_splitted:   
@@ -55,9 +82,22 @@ def parse_progress_file(filepath, horizon=10, num_epochs=1000, has_fake_env_resu
                 extra_line_no += 1
             line_no += extra_line_no - 1
             all_recorded = True
+        elif "fake_best_eval_mean_normal:" in line_splitted and fake_env_results_type == 2:
+            fake_mean = float(line_splitted[1])
+            fake_std = float(line_splitted[3])
+            env_ = env_name.split("-")[0]
+            if compute_normalized_score_for_fake_eval:
+                fake_normalized_rewards_mean = get_normalized_score(env_, fake_mean) 
+                fake_normalized_rewards_std = get_normalized_score(env_, fake_mean+fake_std) - get_normalized_score(env_, fake_mean) 
+            else:
+                fake_normalized_rewards_mean = fake_mean
+                fake_normalized_rewards_std = fake_std
         line_no += 1
         if all_recorded: 
-            trunc_first_digit_idx = 3 if truncation_splitted[3][-1].isdigit() else 4
+            if horizon > 1:
+                trunc_first_digit_idx = 3 if truncation_splitted[3][-1].isdigit() else 4
+            else:
+                trunc_first_digit_idx = 3
             for h in range(horizon):
                 truncation[ep_no,h] = int(parse_str_for_number(truncation_splitted[trunc_first_digit_idx+h]))
                 uncertainty_estimate[ep_no,h] = float(parse_str_for_number(uncertainty_estimate_splitted[3+h]))
@@ -73,7 +113,7 @@ def plot_for_separate(plot_for, results, seeds, model_seeds, iterations):
         result = results[seed]["mean"] if plot_for == "human_normalized_score" else results[seed]
         plt.plot(iterations, result, color=color, linewidth=2.0, label=label, marker=".")
 
-def plot_results(log_dir, env_name, models, seeds, settings, plot_for_list, has_fake_env_results, figname_extra):
+def plot_results(log_dir, env_name, models, seeds, algo, settings, plot_for_list, fake_env_results_type, compute_normalized_score_for_fake_eval, figname_extra):
     plt.rcParams['font.family'] = 'serif'
     plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
     plt.rcParams['font.size'] = settings["fontsize"]
@@ -87,8 +127,13 @@ def plot_results(log_dir, env_name, models, seeds, settings, plot_for_list, has_
     iterations = np.arange(0, num_epochs, dtype=int)
     iterations_step = iterations*steps_per_iter
 
-    model_seeds = models["seeds"]
-    model_config = models["config"]
+    if "halfcheetah" in env_name:
+        model_seeds = models[algo]["seeds"]
+        model_config = models[algo]["config"]
+    else:
+        model_seeds = models["seeds"]
+        model_config = models["config"]
+
     results = {
         "human_normalized_score": {},
         "fake_normalized_score": {},
@@ -97,13 +142,16 @@ def plot_results(log_dir, env_name, models, seeds, settings, plot_for_list, has_
         "mean_reward": {},
     }
     for seed in seeds:
-        filepath = os.path.join(log_dir, env_name, "tatu_mopo_sde", model_seeds[seed]["model"], "progress.txt")
+        algo_dir = "tatu_mopo" if algo == "mopo" else algo
+        filepath = os.path.join(log_dir, env_name, algo_dir, model_seeds[seed]["model"])
         print(model_seeds[seed]["model"])
         normalized_rewards_mean, normalized_rewards_std, fake_normalized_rewards_mean, fake_normalized_rewards_std, \
-            truncation, uncertainty_estimate, mean_rewards = parse_progress_file(filepath, 
+            truncation, uncertainty_estimate, mean_rewards = parse_progress_file(env_name=env_name,
+                                                                                 filepath=filepath, 
                                                                                  horizon=model_config["RL"], 
                                                                                  num_epochs=num_epochs,
-                                                                                 has_fake_env_results=has_fake_env_results)
+                                                                                 fake_env_results_type=fake_env_results_type,
+                                                                                 compute_normalized_score_for_fake_eval=compute_normalized_score_for_fake_eval)
         results["human_normalized_score"][seed] = {
             "mean": normalized_rewards_mean,
             "std": normalized_rewards_std,
@@ -124,12 +172,19 @@ def plot_results(log_dir, env_name, models, seeds, settings, plot_for_list, has_
         max_human_normalized_scores.append(results["human_normalized_score"][seed]["mean"][max_human_normalized_scores_idx[seed]])
     max_human_normalized_scores = np.array(max_human_normalized_scores)
     print(f"Max human normalized scores: {np.mean(max_human_normalized_scores)} ± {np.std(max_human_normalized_scores)}")
-    if has_fake_env_results:
+    if fake_env_results_type == 1:
         max_fake_normalized_scores = []
         for seed in seeds:
             max_fake_normalized_scores.append(results["fake_normalized_score"][seed]["mean"][max_human_normalized_scores_idx[seed]])
         max_fake_normalized_scores = np.array(max_fake_normalized_scores)
         print(f"Max fake normalized scores: {np.mean(max_fake_normalized_scores)} ± {np.std(max_fake_normalized_scores)}")
+    elif fake_env_results_type == 2 or fake_env_results_type == 3:
+        max_fake_normalized_scores = []
+        for seed in seeds:
+            max_fake_normalized_scores.append(results["fake_normalized_score"][seed]["mean"])
+        max_fake_normalized_scores = np.array(max_fake_normalized_scores)
+        print(f"Max fake normalized scores: {np.mean(max_fake_normalized_scores)} ± {np.std(max_fake_normalized_scores)}")
+    
     lines = [Line2D([0], [0], color=seeds[seed], linestyle="-", marker="", linewidth=2.0)
             for seed in seeds]
     for plot_for in plot_for_list:
@@ -150,14 +205,15 @@ def plot_results(log_dir, env_name, models, seeds, settings, plot_for_list, has_
         for seed in seeds:
             plot_info += f"{seed}_" 
 
-        for config in model_config:
-            plot_info += f"{config}={model_config[config]}_"
+        if "tatu_mopo_sde" == algo:
+            for config in model_config:
+                plot_info += f"{config}={model_config[config]}_"
 
         plot_info += f"prog4{plot_for}"
         # create figures dir if not exists
         if not os.path.exists("figures"):
             os.makedirs("figures")
-        figpath = os.path.join("figures", f"{env_name}_{plot_info}{figname_extra}.pdf")
+        figpath = os.path.join("figures", f"{env_name}_{algo}_{plot_info}{figname_extra}.pdf")
         print(figpath)
         plt.savefig(figpath, dpi=500, bbox_inches='tight', bbox_extra_artists=(lgd,))
         plt.close()
@@ -165,8 +221,8 @@ def plot_results(log_dir, env_name, models, seeds, settings, plot_for_list, has_
 
 def main():
     log_dir = "/home/ck28372/sde4mbrltatu/log/"
-    # env_name = "halfcheetah-random-v2"
-    env_name = "HalfCheetah-v3-High-1000-neorl"
+    # env_name = "walker2d-medium-expert-v2"
+    env_name = "Walker2d-v3-Low-1000-neorl"
     seeds = {
         32: "red",
         62: "blue",
@@ -174,10 +230,15 @@ def main():
         122: "magenta",
         # 152: "cyan",
     }
+    algo = "tatu_mopo_sde" 
+    # algo = "tatu_mopo"
+    # algo = "mopo"
+    
     figname_extra = ""
     plot_for_list = ["human_normalized_score", "uncertainty", "mean_reward", "truncation"]
-    has_fake_env_results = False
-
+    fake_env_results_type = 0 # 0: no fake env results, 1: fake env results in all epochs, 2: fake env results at the end, 3: fake_eval.txt
+    compute_normalized_score_for_fake_eval = False
+    
     models = {
         ########### HALFCHEETAH NeoRL ############
         "HalfCheetah-v3-Low-1000-neorl": {
@@ -409,118 +470,422 @@ def main():
         },
         ########### HALFCHEETAH D4RL ############
         "halfcheetah-random-v2": {
-            "config": {
-                "RL": 20,
-                "CVaR": 1,
-                "RPC": 0.001,
+            "tatu_mopo_sde": {  
+                "config": {
+                    "RL": 20,
+                    "CVaR": 1,
+                    "RPC": 0.001,
+                },
+                "seeds": {
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_143848",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_144109",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_144113",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_144132",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_144145",
+                    # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171344",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171425",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171432",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171434",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171451",
+                    },
+                },
             },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_143848",
+            "tatu_mopo":{
+                "config": {
+                    "RL": 5,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_144109",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "critic_num_2_seed_32_0518_155708-halfcheetah_random_v2_tatu_mopo",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "critic_num_2_seed_62_0518_155712-halfcheetah_random_v2_tatu_mopo",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "critic_num_2_seed_92_0518_155715-halfcheetah_random_v2_tatu_mopo",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "critic_num_2_seed_122_0518_155716-halfcheetah_random_v2_tatu_mopo",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "critic_num_2_seed_152_0518_155719-halfcheetah_random_v2_tatu_mopo",
+                    },
                 },
-                92: {
-                    "label": "seed-92",
-                    "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_144113",
+            },
+            "mopo":{
+                "config": {
+                    "RL": 5,
                 },
-                122: {
-                    "label": "seed-122",
-                    "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_144132",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_144145",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "critic_num_2_seed_32_0519_152820_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "critic_num_2_seed_62_0519_152840_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "critic_num_2_seed_92_0519_152843_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "critic_num_2_seed_122_0519_152858_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "critic_num_2_seed_152_0519_152907_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
+                    },
                 },
             },
         },
         "halfcheetah-medium-v2": {
-            "config": {
-                "RL": 5,
-                "CVaR": 0.99,
-                "RPC": 1,
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 5,
+                    "CVaR": 0.99,
+                    "RPC": 1,
+                },
+                "seeds": {
+                #     32: {
+                #         "label": "seed-32",
+                #         "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_164842",
+                #     },
+                #     62: {
+                #         "label": "seed-62",
+                #         "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_164851",
+                #     },
+                #     92: {
+                #         "label": "seed-92",
+                #         "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_164857",
+                #     },
+                #     122: {
+                #         "label": "seed-122",
+                #         "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_164902",
+                #     },
+                #     152: {
+                #         "label": "seed-152",
+                #         "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_164905",
+                #     },
+                    32: {
+                        "label": "seed-32",
+                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171554",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171608",                    
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171614",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171624",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171628",
+                    },
+                },
             },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_164842",
+            "tatu_mopo":{
+                "config": {
+                    "RL": 5,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_164851",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "critic_num_2_seed_32_0518_155450-halfcheetah_medium_v2_tatu_mopo",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "critic_num_2_seed_62_0518_155501-halfcheetah_medium_v2_tatu_mopo",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "critic_num_2_seed_92_0518_155509-halfcheetah_medium_v2_tatu_mopo",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "critic_num_2_seed_122_0518_155514-halfcheetah_medium_v2_tatu_mopo",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "critic_num_2_seed_152_0518_155524-halfcheetah_medium_v2_tatu_mopo",
+                    },
                 },
-                92: {
-                    "label": "seed-92",
-                    "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_164857",
+            },
+            "mopo":{
+                "config": {
+                    "RL": 1,
                 },
-                122: {
-                    "label": "seed-122",
-                    "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_164902",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_164905",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "critic_num_2_seed_32_0519_153029_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "critic_num_2_seed_62_0519_153032_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "critic_num_2_seed_92_0519_153040_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "critic_num_2_seed_122_0519_153053_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "critic_num_2_seed_152_0519_153056_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
+                    },
                 },
             },
         },
         "halfcheetah-medium-replay-v2": {
-            "config": {
-                "RL": 5,
-                "CVaR": 0.9,
-                "RPC": 1,
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 5,
+                    "CVaR": 0.9,
+                    "RPC": 1,
+                },
+                "seeds": {
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_144719",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_144725",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_144738",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_144741",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_144747",
+                    # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171705",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171711",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171724",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171727",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171736",
+                    },
+                },
             },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_144719",
+            "tatu_mopo":{
+                "config": {
+                    "RL": 5,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_144725",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "critic_num_2_seed_32_0518_155620-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "critic_num_2_seed_62_0518_155545-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "critic_num_2_seed_92_0518_155548-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "critic_num_2_seed_122_0518_155550-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "critic_num_2_seed_152_0518_155555-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
                 },
-                92: {
-                    "label": "seed-92",
-                    "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_144738",
+            },
+            "mopo":{
+                "config": {
+                    "RL": 5,
                 },
-                122: {
-                    "label": "seed-122",
-                    "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_144741",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_144747",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "critic_num_2_seed_32_0519_153143_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "critic_num_2_seed_62_0519_153149_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "critic_num_2_seed_92_0519_153212_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "critic_num_2_seed_122_0519_153216_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "critic_num_2_seed_152_0519_153224_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
+                    },
                 },
             },
         },
         "halfcheetah-medium-expert-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.95,
-                "RPC": 1,
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.95,
+                    "RPC": 1,
+                },
+                "seeds": {
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_165012",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_165021",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_165023",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_165023",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_165025",
+                    # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171831",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171851",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171904",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171909",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171912",
+                    },
+                },
             },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_165012",
+            "tatu_mopo":{
+                "config": {
+                    "RL": 5,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_165021",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "critic_num_2_seed_32_0518_155659-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "critic_num_2_seed_62_0518_155702-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "critic_num_2_seed_92_0518_155703-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "critic_num_2_seed_122_0518_155708-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "critic_num_2_seed_152_0518_155712-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
                 },
-                92: {
-                    "label": "seed-92",
-                    "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_165023",
+            },
+            "mopo":{
+                "config": {
+                    "RL": 5,
                 },
-                122: {
-                    "label": "seed-122",
-                    "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_165023",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_165025",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "critic_num_2_seed_32_0519_153307_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "critic_num_2_seed_62_0519_153330_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "critic_num_2_seed_92_0519_153335_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "critic_num_2_seed_122_0519_153339_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "critic_num_2_seed_152_0519_153343_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
+                    },
                 },
             },
         },
@@ -771,29 +1136,29 @@ def main():
         "HalfCheetah-v3-Low-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 60.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0., 1.]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0., 0.003]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [1., 4]
             },
         },
         "HalfCheetah-v3-Medium-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 80.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.2, 1.]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
@@ -801,161 +1166,161 @@ def main():
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [3., 6]
             },
         },
         "HalfCheetah-v3-High-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 90.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0., 0.5]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0., 0.5]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [6., 9]
             },
         },
         "Hopper-v3-Low-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 40.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.1, .5]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0., 1.]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [2., 3]
             },
         },
         "Hopper-v3-Medium-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 110.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.15, 0.4]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0.02, 0.1]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [3.5, 3.8]
             },
         },
         "Hopper-v3-High-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 110.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.15, 0.4]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0.02, 0.2]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [3.5, 4]
             },
         },
         "Walker2d-v3-Low-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 60.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.3, 0.5]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0., 0.015]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [1.5, 3]
             },
         },
         "Walker2d-v3-Medium-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 70.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.2, 0.5]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0., 0.06]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [2., 3.5]
             },
         },
         "Walker2d-v3-High-1000-neorl": {
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 80.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.2, 0.4]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0., 0.025]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [0., 1.5]
+                "ylim": [3., 4]
             },
         },
         "halfcheetah-random-v2":{
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 35.]
+                "ylim": [0., 60.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.2, 0.4]
+                "ylim": [0.2, 1.0]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [-0.025, 0.075]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [-0.1, 1.5]
+                "ylim": [-0.1, 2.5]
             },
         },
         "halfcheetah-medium-v2":{
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 90.]
+                "ylim": [0., 70.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.4, 1]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
@@ -963,17 +1328,35 @@ def main():
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [2, 4]
+                "ylim": [3, 5]
             },
         },
         "halfcheetah-medium-replay-v2":{
+            "human_normalized_score": {
+                "ylabel": 'Human Normalized Score',
+                "ylim": [0., 70.]
+            },
+            "uncertainty": {
+                "ylabel": 'Uncertainty',
+                "ylim": [0., 0.5]
+            },
+            "truncation": {
+                "ylabel": 'Truncation Ratio',
+                "ylim": [0., 0.075]
+            },
+            "mean_reward": {
+                "ylabel": 'Mean reward',
+                "ylim": [2.5, 3.5]
+            },
+        },
+        "halfcheetah-medium-expert-v2":{
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
                 "ylim": [0., 100.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.25, 1.]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
@@ -981,31 +1364,13 @@ def main():
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [1.5, 2.5]
-            },
-        },
-        "halfcheetah-medium-expert-v2":{
-            "human_normalized_score": {
-                "ylabel": 'Human Normalized Score',
-                "ylim": [0., 115.]
-            },
-            "uncertainty": {
-                "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
-            },
-            "truncation": {
-                "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
-            },
-            "mean_reward": {
-                "ylabel": 'Mean reward',
-                "ylim": [3, 4.5]
+                "ylim": [5, 8.]
             },
         },
         "hopper-random-v2":{
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 35.]
+                "ylim": [0., 90.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
@@ -1013,17 +1378,17 @@ def main():
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [-0.25, 0.025]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [-0.1, 1.5]
+                "ylim": [0.5, 1.5]
             },
         },
         "hopper-medium-v2":{
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 90.]
+                "ylim": [0., 110.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
@@ -1031,21 +1396,21 @@ def main():
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0., 0.2]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [2, 4]
+                "ylim": [2, 3]
             },
         },
         "hopper-medium-replay-v2":{
             "human_normalized_score": {
                 "ylabel": 'Human Normalized Score',
-                "ylim": [0., 100.]
+                "ylim": [0., 110.]
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.2, 0.5]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
@@ -1063,15 +1428,15 @@ def main():
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.25, 0.5]
+                "ylim": [0.1, 0.5]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
-                "ylim": [0., 0.075]
+                "ylim": [0., 0.1]
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [3, 4.5]
+                "ylim": [2, 3.5]
             },
         },
         "walker2d-random-v2":{
@@ -1081,7 +1446,7 @@ def main():
             },
             "uncertainty": {
                 "ylabel": 'Uncertainty',
-                "ylim": [0.2, 0.4]
+                "ylim": [0.2, 0.45]
             },
             "truncation": {
                 "ylabel": 'Truncation Ratio',
@@ -1107,7 +1472,7 @@ def main():
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [2, 4]
+                "ylim": [2, 3.5]
             },
         },
         "walker2d-medium-replay-v2":{
@@ -1143,7 +1508,7 @@ def main():
             },
             "mean_reward": {
                 "ylabel": 'Mean reward',
-                "ylim": [3, 4.5]
+                "ylim": [3, 4.25]
             },
         },
     }
@@ -1153,9 +1518,11 @@ def main():
         env_name,
         models[env_name],
         seeds,
+        algo,
         settings,
         plot_for_list,
-        has_fake_env_results,
+        fake_env_results_type,
+        compute_normalized_score_for_fake_eval,
         figname_extra,
     )
 
