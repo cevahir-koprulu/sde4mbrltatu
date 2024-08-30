@@ -55,7 +55,7 @@ class Trainer_modelbsed:
                             rollout_info = self.algo.rollout_transitions()
                             rollout_info = { k : np.array(v) for k, v in rollout_info.items() }
                             rollout_infos.append(rollout_info)
-                            
+
                     # update policy by sac
                     loss = self.algo.learn_policy()
                     t.set_postfix(**loss)
@@ -110,8 +110,21 @@ class Trainer_modelbsed:
         if self.eval_fake_env:
             self.algo.policy.load_state_dict(torch.load(os.path.join(self.logger.writer.get_logdir(), "best_policy.pth")))
             fake_eval_info = self._fake_evaluate(best_obs_inits)
-            fake_best_eval_mean, fake_std_best_mean = np.mean(eval_info[f"eval/episode_reward"]), np.std(eval_info[f"eval/episode_reward"])
-            self.logger.print(f"fake_best_eval_mean_normal: {fake_best_eval_mean:.1f} ± {fake_std_best_mean:.1f}")
+            # Penalized rewards
+            fake_best_eval_mean_normal = self.eval_env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_reward"]))*100
+            fake_std_best_mean_normal = self.eval_env.get_normalized_score(
+                np.mean(fake_eval_info[f"eval/episode_reward"])+np.std(fake_eval_info[f"eval/episode_reward"]))*100 - fake_best_eval_mean_normal
+            # Uncertainty
+            fake_best_eval_mean_normal_unc = self.eval_env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_uncertainty"]))*100
+            fake_std_best_mean_normal_unc = self.eval_env.get_normalized_score(
+                np.mean(fake_eval_info[f"eval/episode_uncertainty"])+np.std(fake_eval_info[f"eval/episode_uncertainty"]))*100 - fake_best_eval_mean_normal_unc
+            # Unpenalized rewards
+            fake_best_eval_mean_normal_unpen = self.eval_env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_unpenalized_reward"]))*100
+            fake_std_best_mean_normal_unpen = self.eval_env.get_normalized_score(
+                np.mean(fake_eval_info[f"eval/episode_unpenalized_reward"])+np.std(fake_eval_info[f"eval/episode_unpenalized_reward"]))*100 - fake_best_eval_mean_normal_unpen
+            self.logger.print(f"fake_best_eval_mean_normal: {fake_best_eval_mean_normal:.1f} ± {fake_std_best_mean_normal:.1f}")
+            self.logger.print(f"fake_best_eval_mean_normal_unc: {fake_best_eval_mean_normal_unc:.1f} ± {fake_std_best_mean_normal_unc:.1f}")
+            self.logger.print(f"fake_best_eval_mean_normal_unpen: {fake_best_eval_mean_normal_unpen:.1f} ± {fake_std_best_mean_normal_unpen:.1f}")
 
         self.logger.print("total time: {:.3f}s".format(time.time() - start_time))
         # self.logger.print("number of critics: {:d}".format(self.algo.policy.critic_num))
@@ -184,7 +197,8 @@ class Trainer_modelbsed:
         eval_ep_info_buffer = []
         num_episodes = 0
         episode_reward, episode_length = 0, 0
-        episode_diff_value = 0
+        episode_uncertainty = 0
+        episode_unpenalized_reward = 0
         rng = None
         for obs_init in obs_inits:
             obs = np.array(obs_init)
@@ -199,26 +213,31 @@ class Trainer_modelbsed:
                     obs, action, rng=rng
                 )
                 rng = infos['next_rng']
-                diff_value = infos['diff_value']
+                uncertainty = infos['uncertainty']
+                unpenalized_reward = infos['unpenalized_reward']
                 episode_reward += reward
                 episode_length += 1
-                episode_diff_value += diff_value
+                episode_uncertainty += uncertainty
+                episode_unpenalized_reward += unpenalized_reward
                 obs = next_obs
                 if terminal or _iter_num == self.algo.max_steps_per_env-1:
                     eval_ep_info_buffer.append(
                         {   "episode_reward": episode_reward,
                             "episode_length": episode_length,
-                            "episode_diff_value": episode_diff_value
+                            "episode_uncertainty": episode_uncertainty,
+                            "episode_unpenalized_reward": episode_unpenalized_reward
                          }
                     )
                     num_episodes +=1
                     episode_reward, episode_length = 0, 0
-                    episode_diff_value = 0
+                    episode_uncertainty = 0
+                    episode_unpenalized_reward = 0
                     break
         return {
             "eval/episode_reward": [ep_info["episode_reward"] for ep_info in eval_ep_info_buffer],
             "eval/episode_length": [ep_info["episode_length"] for ep_info in eval_ep_info_buffer],
-            "eval/episode_diff_value": [ep_info["episode_diff_value"] for ep_info in eval_ep_info_buffer]
+            "eval/episode_uncertainty": [ep_info["episode_uncertainty"] for ep_info in eval_ep_info_buffer],
+            "eval/episode_unpenalized_reward": [ep_info["episode_unpenalized_reward"] for ep_info in eval_ep_info_buffer],
         }
         
         

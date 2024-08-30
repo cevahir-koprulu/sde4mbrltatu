@@ -125,7 +125,8 @@ class FakeEnv:
         info = {'mean': return_means, 'std': return_stds,
                 'log_prob': log_prob, 'dev': dev,
                 'unpenalized_rewards': unpenalized_rewards,
-                'penalty': penalty, 'penalized_rewards': penalized_rewards
+                'penalty': penalty, 'penalized_rewards': penalized_rewards,
+                'disc': np.mean(penalty),
         }
         return next_obs, penalized_rewards, terminals, info
 
@@ -423,26 +424,40 @@ class FakeEnv_tatu:
         inputs = np.concatenate((obs, act), axis=-1)
         ensemble_model_means, ensemble_model_vars = \
             self.model.predict(inputs, factored=True)
-        pred_state_mean = np.mean(ensemble_model_means[:,:,1:], axis=0) + obs
+        ensemble_model_means[:,:,1:] += obs
+        pred_state_mean = np.mean(ensemble_model_means[:,:,1:], axis=0)
         ensemble_model_stds = np.sqrt(ensemble_model_vars)
-        uncertainty = np.amax(
-                    np.linalg.norm(ensemble_model_stds, axis=2), axis=0
-                )
         # Get the reward and done
         rewards = self.config.single_step_reward(obs, act, pred_state_mean)
         terminals = self.config.termination_fn(obs, act, pred_state_mean)
+
+        ensemble_means_obs = ensemble_model_means[:,:,1:]
+        # average predictions over models
+        mean_obs_means = np.mean(ensemble_means_obs, axis=0)
+        diffs = ensemble_means_obs - mean_obs_means
+        dists = np.linalg.norm(diffs, axis=2)   # distance in obs space
+        if not self.penalty_learned_var:
+            # max distances over models
+            uncertainty = np.max(dists, axis=0)
+        else:
+            uncertainty = np.amax(
+                np.linalg.norm(ensemble_model_stds, axis=2), axis=0
+            )
+        assert uncertainty.shape == rewards.shape
+        penalized_rewards = rewards - self.penalty_coeff * uncertainty
 
         # Get the next state
         next_obs = pred_state_mean
 
         if return_single:
             next_obs = next_obs[0]
+            penalized_rewards = penalized_rewards[0]
             rewards = rewards[0]
             terminals = terminals[0]
             uncertainty = uncertainty[0]
         
-        return next_obs, rewards, terminals, \
-            {"next_rng": None, "diff_value": uncertainty}
+        return next_obs, penalized_rewards, terminals, \
+            {"next_rng": None, "uncertainty": uncertainty, "unpenalized_reward": rewards}
 
 
 class FakeEnv_SDE_Trunc:
@@ -631,23 +646,25 @@ class FakeEnv_SDE_Trunc:
 
         # Get the mean as the predicted state
         pred_state_mean = np.mean(pred_state, axis=0)
-        diff_value_mean = np.mean(diff_value, axis=0)
+        diff_value_mean = np.mean(np.linalg.norm(diff_value,axis=-1), axis=0)
 
         # Get the reward and done
         rewards = self.config.single_step_reward(obs, act, pred_state_mean)
         terminals = self.config.termination_fn(obs, act, pred_state_mean)
 
+        penalized_rewards = rewards - self.penalty_coeff * diff_value_mean
         # Get the next state
         next_obs = pred_state_mean
 
         if return_single:
             next_obs = next_obs[0]
             rewards = rewards[0]
+            penalized_rewards = penalized_rewards[0]
             terminals = terminals[0]
             diff_value_mean = diff_value_mean[0]
         
-        return next_obs, rewards, terminals, \
-            {"next_rng": next_rng, "diff_value": diff_value_mean}
+        return next_obs, penalized_rewards, terminals, \
+            {"next_rng": next_rng, "uncertainty": diff_value_mean, "unpenalized_reward": rewards}
 
     def compute_threshold_truncation(
         self,
