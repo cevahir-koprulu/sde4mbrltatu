@@ -76,10 +76,15 @@ class Trainer_modelbsed:
                             self.logger.record(k, v, num_timesteps, printed=False)
                     num_timesteps += 1
                     t.update(1)
-            
+
+            # evaluate uncertainty
+            eval_unc_stats = self._evaluate_uncertainty()
+            self.log_eval_unc_stats(eval_unc_stats, e, num_timesteps)
+
             # evaluate current policy
             eval_info, obs_inits = self._evaluate()
             ep_reward_mean, ep_reward_std = self.log_eval_info(eval_info, e, num_timesteps)
+
             # if self.eval_fake_env:
             #     fake_eval_info = self._fake_evaluate(obs_inits)
             #     fake_ep_reward_mean, fake_ep_reward_std = \
@@ -161,6 +166,12 @@ class Trainer_modelbsed:
         self.logger.print(f"Epoch #{e}: {pref}episode_reward: {ep_reward_mean:.3f} ± {ep_reward_std:.3f}, {pref}episode_length: {ep_length_mean:.3f} ± {ep_length_std:.3f}")
         self.logger.print(f"Epoch #{e}: {pref}episode_reward_normal: {ep_reward_mean_normal:.1f} ± {ep_reward_std_normal:.1f}")
         return ep_reward_mean, ep_reward_std
+    
+    def log_eval_unc_stats(self, eval_unc_stats, e, num_timesteps):
+        for k, v in eval_unc_stats.items():
+            for k_i, v_i in v.items():
+                self.logger.record(f"eval_unc_stats/{k}_{k_i}", v_i, num_timesteps, printed=False)
+            self.logger.print(f"Epoch #{e}: eval_unc_stats/{k}: {eval_unc_stats[k]['mean']:.3f} ± {eval_unc_stats[k]['std']:.3f}")
 
     def _evaluate(self):
         self.algo.policy.eval()
@@ -191,7 +202,10 @@ class Trainer_modelbsed:
             "eval/episode_reward": [ep_info["episode_reward"] for ep_info in eval_ep_info_buffer],
             "eval/episode_length": [ep_info["episode_length"] for ep_info in eval_ep_info_buffer]
         }, obs_inits[:self._eval_episodes]
-    
+
+    def _evaluate_uncertainty(self):
+        return self.algo.compute_uncertainty_distribution()
+
     def _fake_evaluate(self, obs_inits):
         self.algo.policy.eval()
         eval_ep_info_buffer = []

@@ -200,6 +200,39 @@ class TATU_model_based():
         # cvar = np.mean(max_discs[max_discs>=var])
         # return cvar
 
+    def compute_uncertainty_distribution(self):
+        all_offline_data = self.offline_buffer.sample_all()
+
+        observations = all_offline_data["observations"]
+        actions = all_offline_data["actions"]
+
+        mini_batch = 1000
+        slice_num = len(observations)// mini_batch
+        alone_num = len(observations)% mini_batch
+        unc_dicts = []
+        for i in range(slice_num):
+            obs = observations[i*mini_batch:(i+1)*mini_batch,:]
+            act = self.policy.sample_action(obs)
+            unc_dicts.append(self.fake_env.compute_uncertainty(obs,act))
+            
+        if alone_num != 0:
+            obs = observations[slice_num*mini_batch:,:]
+            act = self.policy.sample_action(obs)
+            unc_dicts.append(self.fake_env.compute_uncertainty(obs,act))
+        unc_dict_keys = unc_dicts[0].keys()
+        unc_dict_stacked = {
+            k : np.concatenate([r[k] for r in unc_dicts], axis=0) \
+                for k in unc_dict_keys
+        }
+        unc_stats = {
+            k : {
+                "mean" : np.mean(v),
+                "std" : np.std(v)
+            } for k, v in unc_dict_stacked.items()
+        }   
+        del unc_dicts, unc_dict_stacked, all_offline_data
+        return unc_stats
+
     def _sample_initial_transitions(self):
         return self.offline_buffer.sample(self._rollout_batch_size)
 
