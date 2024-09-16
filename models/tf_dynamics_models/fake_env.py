@@ -387,6 +387,28 @@ class FakeEnv_tatu:
     def close(self):
         pass
 
+    def compute_uncertainty(self,obs, act):
+        assert len(obs.shape) == len(act.shape)
+        if len(obs.shape) == 1:
+            obs = obs[None]
+            act = act[None]
+        
+        inputs = np.concatenate((obs, act), axis=-1)
+        ensemble_model_means, ensemble_model_vars = \
+            self.model.predict(inputs, factored=True)
+        ensemble_model_means[:,:,1:] += obs
+        ensemble_model_stds = np.sqrt(ensemble_model_vars)
+
+        ensemble_means_obs = ensemble_model_means[:,:,1:]
+        dists = np.linalg.norm(ensemble_means_obs - np.mean(ensemble_means_obs, axis=0), axis=2)
+        unc_dict = {
+            'disc': np.max(dists, axis=0),
+            'uncertainty': np.amax(
+                np.linalg.norm(ensemble_model_stds, axis=2), axis=0
+            )
+        }
+        return unc_dict
+
     def compute_disc(self,obs,act):
         assert len(obs.shape) == len(act.shape)
 
@@ -480,6 +502,7 @@ class FakeEnv_SDE_Trunc:
         self.use_diffusion = use_diffusion
         self.env_name = self.model["env_name"]
         self.init_model()
+        self.init_uncertainty_estimation_fn()
 
     def init_model(self,):
         """
@@ -575,6 +598,7 @@ class FakeEnv_SDE_Trunc:
             next_pred_states = pred_states[:, :, 1, :]
             mean_next_states = jax.numpy.mean(next_pred_states, axis=1)
             dist_discr = next_pred_states - jax.numpy.expand_dims(mean_next_states, axis=1)
+            dist_discr = jax.numpy.linalg.norm(dist_discr, axis=-1)
             pred_feats["disc"] = jax.numpy.expand_dims(dist_discr, axis=2)
 
             # Get the diffusion term
@@ -653,6 +677,104 @@ class FakeEnv_SDE_Trunc:
             threshold_quantile=self.model['unc_cvar_coef']
         )
 
+    def init_uncertainty_estimation_fn(self):
+        import jax
+        import jax.numpy as jnp
+        # Import the function to load the SDE model sampler
+        from nsdes_dynamics.load_learned_nsdes import \
+            load_system_sampler_from_model_name
+
+        print("\n################################################")
+        print("Initializing the uncertainty computation")
+        print("################################################\n")
+        horizon = 1 # self.model['rollout_length']
+        sampler_fn, _ = load_system_sampler_from_model_name(
+            self.env_name,
+            model_name = self.model['model_name'],
+            stepsize = self.model['stepsize'],
+            horizon = horizon,
+            num_particles = self.model.get('num_particles'),
+            step = self.model.get('ckpt_step', -2),
+            integration_method=None,
+            verbose=False,
+            return_sde_model= True
+        )
+
+        def _uncertainty_est_fn(
+            x : jax.numpy.ndarray,
+            u : jax.numpy.ndarray,
+            rng : jax.random.PRNGKey
+        ):
+            assert len(x.shape) == len(u.shape) == 2
+
+            # Get matching rng keys
+            next_rng, rng = jax.random.split(rng, 2)
+            rng = jax.random.split(rng, x.shape[0])
+
+            u = jax.numpy.expand_dims(u, axis=1)
+
+            # Define the vmap sampler function
+            _temp_sampler =  lambda _x, _u, _rng: \
+                sampler_fn(state=_x, control=_u, rng_key=_rng)
+
+            # Compute the predictions
+            pred_states, pred_feats = \
+                jax.vmap(_temp_sampler)(x, u, rng)
+            
+            pred_states = pred_states[:, :, 1, :]
+            pred_feats["diff_density"] = pred_feats["diff_density"][...,None]
+
+            diffs = pred_states - jnp.expand_dims(jnp.mean(pred_states, axis=1), axis=1)
+            disc = jnp.expand_dims(jnp.linalg.norm(diffs, axis=-1), axis=2)
+            
+            name_diff = self.model['threshold_decision_var'] # diffusion_value
+            if name_diff not in pred_feats:
+                raise KeyError(f"Invalid threshold_decision_var: {name_diff}")
+
+            # Get the diffusion term
+            pred_feats = {
+                k : jnp.linalg.norm(v, axis=-1) \
+                    for k, v in pred_feats.items() \
+                        if k in ["diffusion_value", "dad_free_diff",
+                                "dad_based_diff", "diff_density"]
+            }
+            diffusion_value = pred_feats[name_diff]
+            penalty = jnp.mean(diffusion_value, axis=1)
+
+            result_dict = {
+                "disc" : disc,
+                'penalty': penalty,
+                **pred_feats
+            }
+            return result_dict
+
+        # Jit the uncertainty estimation function
+        # jit_uncertainty_est_fn = jax.jit(_uncertainty_est_fn, backend='cpu')
+        jit_uncertainty_est_fn = jax.jit(_uncertainty_est_fn)
+        batch_size = self.model.get('batch_size_trunc_thresh', 100)
+
+        def augmented_pred_fn(x, u , rng):
+            batch_x = x.shape[0]
+            last_x = x[-1]
+            last_u = u[-1]
+            # Complte x, u to have a batch size of rollout_batch_size
+            # so that to avoid recompilation
+            if batch_x < batch_size:
+                last_x = np.repeat(last_x[None], batch_size-batch_x, axis=0)
+                last_u = np.repeat(last_u[None], batch_size-batch_x, axis=0)
+                x = np.concatenate((x, last_x), axis=0)
+                u = np.concatenate((u, last_u), axis=0)
+            res = jit_uncertainty_est_fn(x, u, rng)
+            res = { k : np.array(v) for k, v in res.items()}
+            # if batch_x < batch_size:
+            res  = {
+                k : v[:batch_x].reshape((-1,v.shape[-1])) \
+                    for k, v in res.items()
+            }
+            return res 
+        
+        self.uncertainty_estimation_fn = augmented_pred_fn
+
     def step_eval(self, obs, act, rng=None):
         """ Simulate a step function in the environment.
         """
@@ -693,6 +815,14 @@ class FakeEnv_SDE_Trunc:
         
         return next_obs, penalized_rewards, terminals, \
             {"next_rng": next_rng, "uncertainty": diff_value_mean, "unpenalized_reward": rewards}
+
+    def compute_uncertainty(self, obs, act):
+        """ Compute the uncertainty of the model at the given state
+        and control.
+        """
+        # Get the uncertainty estimation function
+        uncertainty_dict = self.uncertainty_estimation_fn(obs, act, self.next_rng)
+        return uncertainty_dict
 
     def compute_threshold_truncation(
         self,
@@ -807,8 +937,6 @@ class FakeEnv_SDE_Trunc:
             batch_x = x.shape[0]
             last_x = x[-1]
             last_u = u[-1]
-            # Complte x, u to have a batch size of rollout_batch_size
-            # so that to avoid recompilation
             if batch_x < batch_size:
                 last_x = np.repeat(last_x[None], batch_size-batch_x, axis=0)
                 last_u = np.repeat(last_u[None], batch_size-batch_x, axis=0)
@@ -821,7 +949,7 @@ class FakeEnv_SDE_Trunc:
                 k : v[:batch_x].reshape((-1,v.shape[-1])) \
                     for k, v in res.items()
             }
-            return res
+            return res            
 
         def compute_discrepancy_on_full_dataset(
             _dataset,
@@ -875,8 +1003,6 @@ class FakeEnv_SDE_Trunc:
                 k : np.concatenate([r[k] for r in res_list], axis=0) \
                     for k in res_names
             }
-            for k in res_names:
-                print(f"Shape of {k}: {stacked_results[k].shape}")
             return stacked_results
 
         # Load the dataset
