@@ -58,6 +58,8 @@ def load_drift_term(
     model_class = models_by_name[model_name]
     # Every fields must be used
     args_drift_term = drift_term_config.get('args', {})
+    if 'reward_nn' not in args_drift_term:
+        args_drift_term['reward_nn'] = {}
     drift_term = model_class(**args_drift_term)
     return drift_term, args_drift_term
 

@@ -501,9 +501,16 @@ def load_dataset_for_nsdes(
         states = data_dict['observations'][t_final_prev+1:t_final+1]
         controls = data_dict['actions'][t_final_prev+1:t_final+1]
         time_arr = np.array([i*env_stepsize for i in range(episode_len)])
+        # Get the rewards vector
+        rewards = data_dict['rewards'][t_final_prev+1:t_final+1]
+        rewards = np.cumsum(rewards).tolist()
+        rewards = np.array([0] + rewards[:-1])
+        assert len(rewards) == states.shape[0], "Rewards and states should have the same length"
+        assert len(rewards) == controls.shape[0], "Rewards and controls should have the same length"
         fields_dict = {
             **{name : states[:, i] for i, name in enumerate(env_infos['names_states'])},
             **{name : controls[:, i] for i, name in enumerate(env_infos['names_controls'])},
+            "reward" : rewards,
         }
 
         # Trajectory and trajectory info dictionaries

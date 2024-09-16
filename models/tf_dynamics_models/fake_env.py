@@ -530,12 +530,15 @@ class FakeEnv_SDE_Trunc:
 
         # Random number generator to propagate through the calls of predict
         self.next_rng = jax.random.PRNGKey(init_seed)
+        is_reward_included = self.sde_model.drift_term.has_reward
+        self.is_reward_included = is_reward_included
 
         # Define the prediction function
         def _my_pred_fn(
             x : jax.numpy.ndarray,
             u : jax.numpy.ndarray,
-            rng : jax.random.PRNGKey
+            rng : jax.random.PRNGKey,
+            return_reward=False
         ):
             """
             Return the predicted next state and the diffusion values
@@ -549,6 +552,10 @@ class FakeEnv_SDE_Trunc:
             """
             # Some checks
             assert len(x.shape) == len(u.shape) == 2
+            # x_old = x
+            if is_reward_included:
+                zero_last_dim = jax.numpy.zeros((x.shape[0], 1))
+                x = jax.numpy.concatenate((x, zero_last_dim), axis=-1)
 
             # Split the rng to match the input dimensions
             next_rng, rng = jax.random.split(rng, 2)
@@ -564,6 +571,7 @@ class FakeEnv_SDE_Trunc:
             pred_states, pred_feats = \
                 jax.vmap(_temp_sampler)(x, u, rng)
             pred_feats["diff_density"] = pred_feats["diff_density"][...,None]
+
             next_pred_states = pred_states[:, :, 1, :]
             mean_next_states = jax.numpy.mean(next_pred_states, axis=1)
             dist_discr = next_pred_states - jax.numpy.expand_dims(mean_next_states, axis=1)
@@ -583,13 +591,23 @@ class FakeEnv_SDE_Trunc:
             pred_states = jax.lax.transpose(pred_states, (1, 0, 2))
             diffusion_value = jax.lax.transpose(diffusion_value, (1, 0, 2))
 
+            if is_reward_included:
+                reward_val = pred_states[..., -1:]
+                pred_states = pred_states[..., :-1]
+                if diffusion_value.shape[-1] == x.shape[-1]:
+                    diffusion_value = diffusion_value[..., :-1]
+
+            if return_reward:
+                assert is_reward_included, "No reward in the model"
+                return pred_states, diffusion_value, next_rng, reward_val
+
             return pred_states, diffusion_value, next_rng
 
         # Jit the prediction function
-        self._predict = jax.jit(_my_pred_fn, backend=backend)
+        self._predict = jax.jit(_my_pred_fn, backend=backend, static_argnums=(3,))
         # self._predict_step = jax.jit(_my_pred_fn, backend="cpu")
 
-        def augmented_pred_fn(x, u , rng):
+        def augmented_pred_fn(x, u , rng, return_reward=False):
             """ Wrapper around prediction function to varying 
             batch sizes.
             """
@@ -604,13 +622,23 @@ class FakeEnv_SDE_Trunc:
                 x = np.concatenate((x, last_x), axis=0)
                 u = np.concatenate((u, last_u), axis=0)
             # Do the prediction
-            pred_state, diff_value, next_rng = self._predict(x, u, rng)
+            rew_val  = None
+            if not return_reward:
+                pred_state, diff_value, next_rng = self._predict(x, u, rng, return_reward)
+            else:
+                pred_state, diff_value, next_rng, rew_val = self._predict(x, u, rng, return_reward)
+                rew_val = np.array(rew_val)
             pred_state = np.array(pred_state)
             diff_value = np.array(diff_value)
             # Trim the output to the original batch size
             if batch_x < rollout_batch_size:
                 pred_state = pred_state[:,:batch_x,:]
                 diff_value = diff_value[:,:batch_x,:]
+                if return_reward:
+                    rew_val = rew_val[:,:batch_x,:]
+
+            if return_reward:
+                return pred_state, diff_value, next_rng, rew_val
 
             return pred_state, diff_value, next_rng
 
@@ -712,6 +740,7 @@ class FakeEnv_SDE_Trunc:
             verbose=False,
             return_sde_model= True
         )
+        is_reward_included = sde_model.drift_term.has_reward
 
         def _uncertainty_est_fn(
             x : jax.numpy.ndarray,
@@ -722,6 +751,11 @@ class FakeEnv_SDE_Trunc:
             assert x.ndim == 2 and u.ndim == 3 and \
                 x.shape[0] == u.shape[0], f"Invalid shapes: {x.shape} {u.shape}"
             assert u.shape[1] == horizon, f"Invalid u horizon: {u.shape[1]}"
+            
+            # x_old = x
+            if is_reward_included:
+                zero_last_dim = jax.numpy.zeros((x.shape[0], 1))
+                x = jax.numpy.concatenate((x, zero_last_dim), axis=-1)
 
             # Get matching rng keys
             rng = jax.random.split(rng, x.shape[0])
@@ -730,12 +764,21 @@ class FakeEnv_SDE_Trunc:
             _temp_sampler =  lambda _x, _u, _rng: \
                 sampler_fn(state=_x, control=_u, rng_key=_rng)
 
+            # print(f"Computing the uncertainty for {x.shape} samples")
             # Compute the predictions
             pred_states, pred_feats = \
                 jax.vmap(_temp_sampler)(x, u, rng)
+
             # Let's remove the first state
             pred_states = pred_states[:, :, 1:, :]
             pred_feats["diff_density"] = pred_feats["diff_density"][...,None]
+
+            if is_reward_included:
+                pred_states = pred_states[..., :-1]
+                pred_feats =  jax.tree_map(
+                    lambda z : z[..., :-1] if z.shape[-1] == x.shape[-1] else z,
+                    pred_feats
+                )
 
             diffs = pred_states - jnp.expand_dims(jnp.mean(pred_states, axis=1), axis=1)
             disc = jnp.linalg.norm(diffs, axis=-1)
@@ -844,7 +887,7 @@ class FakeEnv_SDE_Trunc:
             augmented_pred_fn,
             horizon,
             batch_size,
-            sde_model.names_states,
+            sde_model.names_states if not is_reward_included else sde_model.names_states[:-1],
             sde_model.names_controls,
             rng_unc
         )
@@ -920,8 +963,13 @@ class FakeEnv_SDE_Trunc:
 
         # Predict the next state and diffusion values
         # and store the next random number generator
-        predicted_particles, predicted_diffusion, self.next_rng = \
-            self.predict(obs, act, self.next_rng)
+        rewards_computed = None
+        if self.is_reward_included:
+            predicted_particles, predicted_diffusion, self.next_rng, rewards_computed = \
+                self.predict(obs, act, self.next_rng, return_reward=True)
+        else:
+            predicted_particles, predicted_diffusion, self.next_rng = \
+                self.predict(obs, act, self.next_rng)
 
         if not deterministic:
             #### Choose one particle randomly
@@ -929,9 +977,13 @@ class FakeEnv_SDE_Trunc:
             particle_inds = np.random.choice(num_particles, size=batch_size)
             batch_inds = np.arange(0, batch_size)
             chosen_particles = predicted_particles[particle_inds, batch_inds]
+            if rewards_computed is not None:
+                rewards_computed = rewards_computed[particle_inds, batch_inds]
         else:
             ### Choose the mean of predicted particles
             chosen_particles = np.mean(predicted_particles, axis=0)
+            if rewards_computed is not None:
+                rewards_computed = np.mean(rewards_computed, axis=0)
 
         # Mean and standard deviation of the predicted particles
         model_means = np.mean(predicted_particles, axis=0)
@@ -944,7 +996,11 @@ class FakeEnv_SDE_Trunc:
 
         # Define the next observation and compute the rewards
         next_obs = chosen_particles
-        rewards = self.config.single_step_reward(obs, act, next_obs).reshape(-1,1)
+        if rewards_computed is None:
+            assert not self.is_reward_included, "Rewards should be computed"
+            rewards = self.config.single_step_reward(obs, act, next_obs).reshape(-1,1)
+        else:
+            rewards = rewards_computed
         # Sanity check of the shape of rewards
         # it should always be [batch_size, 1]
         if len(rewards.shape) > 2 :

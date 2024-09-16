@@ -27,6 +27,7 @@ class RBD_Drift(DriftTerm):
     gravity_forces_nn: Dict[str, Any]
     actuator_forces_nn: Dict[str, Any]
     mass_matrix_nn: Dict[str, Any]
+    reward_nn: Dict[str, Any]
     _names_states: List[str]
     _names_controls: List[str]
     _names_positions: List[str]
@@ -36,6 +37,11 @@ class RBD_Drift(DriftTerm):
     _mean_controls: Union[jnp.ndarray, None] = None
     _scale_controls: Union[jnp.ndarray, None] = None
     include_pos_to_vel_relation: bool = True
+
+    @property
+    def has_reward(self) -> bool:
+        """Returns whether the model has a reward."""
+        return len(self.reward_nn) > 0 and self.reward_nn is not None
 
     @property
     def names_states(self) -> List[str]:
@@ -55,7 +61,9 @@ class RBD_Drift(DriftTerm):
     @property
     def names_velocities(self) -> List[str]:
         """Returns the names of the velocity variables."""
-        return self._names_states[self.num_positions:]
+        if not self.has_reward:
+            return self._names_states[self.num_positions:]
+        return self._names_states[self.num_positions:-1]
 
     @property
     def num_positions(self) -> int:
@@ -118,6 +126,7 @@ class RBD_Drift(DriftTerm):
         self.create_gravity_forces()
         self.create_actuator_forces()
         self.create_mass_matrix()
+        self.create_reward()
 
     def create_networks(
         self,
@@ -145,7 +154,7 @@ class RBD_Drift(DriftTerm):
 
     def create_residual_forces(self,):
         """Create the residual and other neural networks."""
-        num_out = self.num_states
+        num_out = self.num_states if not self.has_reward else (self.num_states - 1)
         residual_forces = self.create_networks(
             self.residual_forces_nn,
             num_out
@@ -268,6 +277,27 @@ class RBD_Drift(DriftTerm):
         if mass_matrix is not None:
             self.mass_matrix = mass_matrix
 
+    def create_reward(self,):
+        """Create the reward neural network."""
+        num_out = 1
+        reward = self.create_networks(
+            self.reward_nn,
+            num_out
+        )
+        if reward is not None:
+            self.reward = reward
+    
+    def get_reward(
+        self,
+        features: Dict[str, jnp.ndarray]
+    ) -> jnp.ndarray:
+        """Compute the reward."""
+        in_array = jnp.concatenate(
+            [ features[name] for name in self.reward_nn["features"] ],
+            axis=-1
+        )
+        return self.reward(in_array)
+
     def get_local_to_global(
         self,
         v_local : jnp.ndarray,
@@ -308,18 +338,26 @@ class RBD_Drift(DriftTerm):
                 (n, ) array
             extra: the extra return arguments.
                 (str, Any) dictionary
-        """
+        """        
         # Extract the angles first
         indexes_angles = self.angles_indexes
         angles_val = state[indexes_angles]
         angles_val_mean = self.mean_states[indexes_angles]
         # TODO: This assumes that the velocity with no positions
         # are stacked at the beginning of the velocity vector
-        vel_to_pos = state[-self.num_positions:]
+        if not self.has_reward:
+            vel_to_pos = state[-self.num_positions:]
+        else:
+            vel_to_pos = state[-self.num_positions-1:-1]
 
         # Transform the states
         state = self.transform_states(state)
         control = self.transform_controls(control)
+        
+        # Let's separate the state and reward if it exists
+        if self.has_reward: # We remove the reward from NN's features
+            state = state[:-1]
+
         # Let's separate the state into position and velocity
         pos = state[:self.num_positions]
         vels = state[self.num_positions:]
@@ -332,7 +370,7 @@ class RBD_Drift(DriftTerm):
             "sin_angles": (jnp.sin(angles_val) - jnp.sin(angles_val_mean)),
             **{
                 state_name: jnp.array([state[indx],]) \
-                for indx, state_name in enumerate(self.names_states)
+                for indx, state_name in enumerate(self.names_states) if state_name != "reward"
             }
         }
         # force scale factor
@@ -355,6 +393,10 @@ class RBD_Drift(DriftTerm):
         forces = forces * _force_scale
         # jax.debug.print("forces {}, {}, {}", res_forces, cor_forces, grav_forces)
         vels_dot = self.get_local_to_global(forces, feats)
+        if self.has_reward:
+            # Compute the reward dot
+            reward_dot = self.get_reward(feats)
+            return jnp.concatenate([pos_dot, vels_dot, reward_dot], axis=-1), {}
         return jnp.concatenate([pos_dot, vels_dot], axis=-1), {}
 
     @nn.compact
@@ -425,7 +467,7 @@ class RBD_Drift_Simple(RBD_Drift):
     """
     def create_residual_forces(self):
         """Create the residual and other neural networks."""
-        num_out = self.num_states
+        num_out = self.num_states if not self.has_reward else (self.num_states - 1)
         residual_forces = self.create_networks(
             self.residual_forces_nn,
             num_out
@@ -439,14 +481,26 @@ class RBD_Drift_Simple(RBD_Drift):
         control: jnp.ndarray,
         time_dependent_parameters: Dict[str, Any],
     ) -> Tuple[jnp.ndarray, Dict[str, Any]]:
+        
+        # TODO: This assumes that the velocity with no positions
+        # are stacked at the beginning of the velocity vector
+        if not self.has_reward:
+            vel_to_pos = state[-self.num_positions:]
+        else:
+            vel_to_pos = state[-self.num_positions-1:-1]
+        # Get the cos and sin of the angles
+        angles_val = state[self.angles_indexes]
+
+        # Transform the states
+        state = self.transform_states(state)
+        control = self.transform_controls(control)
+
+        if self.has_reward:
+            state = state[:-1]
+        
         # Let's separate the state into position and velocity
         pos = state[:self.num_positions]
         vels = state[self.num_positions:]
-        # TODO: This assumes that the velocity with no positions
-        # are stacked at the beginning of the velocity vector
-        vel_to_pos = vels[-self.num_positions:]
-        # Get the cos and sin of the angles
-        angles_val = state[self.angles_indexes]
         # Let's create the features vector
         feats = {
             "positions": pos,
@@ -457,11 +511,17 @@ class RBD_Drift_Simple(RBD_Drift):
             "sin_angles": jnp.sin(angles_val),
             **{
                 state_name: jnp.array([state[indx],]) \
-                for indx, state_name in enumerate(self.names_states)
+                for indx, state_name in enumerate(self.names_states) if state_name != "reward"
             }
         }
         # Compute the residual forces
         res_forces = self.get_residual_forces(feats)
+
+        if self.has_reward:
+            # Compute the reward dot
+            reward_dot = self.get_reward(feats)
+            return jnp.concatenate([res_forces, reward_dot], axis=-1), {}
+
         return res_forces, {}
 
 

@@ -51,6 +51,13 @@ model:
           layers_archictecture: [128, 128, 128]
           initial_value_range: 0.001
 
+      reward_nn:
+        features: ["positions", "velocities", "controls"]
+        args:
+          activation_fn: swish
+          layers_archictecture: [64, 64, 64]
+          initial_value_range: 0.001
+
   diffusion_term:
     # Name of the model to instantiate: Check common_diffusion_models folder
     model_name: BasicDistanceAwareDiffusionTerm

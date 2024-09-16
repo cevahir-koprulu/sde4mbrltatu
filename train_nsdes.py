@@ -143,12 +143,20 @@ def setup_system_dataset_and_nsde(
     # Extract the evnvironment name
     env_name = config["dataset"]["name"]
     config["env_name"] = env_name
+
     # Load the environment infos
     env_infos = get_environment_infos_from_name(env_name)
     names_states, names_controls = \
         env_infos['names_states'], env_infos['names_controls']
     sde_config = config['model']
     time_steps = env_infos["stepsize"]
+
+    # Should the reward be learned too?
+    use_reward_in_state = config["model"]["drift_term"]["args"].get("reward_nn", {})
+    use_reward_in_state = len(use_reward_in_state) > 0
+    if use_reward_in_state:
+        names_states = names_states + ["reward"]
+    print("\nNames States : ", names_states)
 
     diff_model_name = sde_config.get('diffusion_term', {}).get('model_name', '')
     is_diff_distance_aware = 'DistanceAwareDiffusion' in diff_model_name
@@ -196,20 +204,27 @@ def setup_system_dataset_and_nsde(
         # Extract the scaling factor for density NN.
         u_dependent = diff_args['diffusion_is_control_dependent']
         fields_to_scale = names_states + (names_controls if u_dependent else [])
+        diff_args["is_reward_in_state"] = False
+        if use_reward_in_state:
+            diff_args["upper_bound_diffusion"] = diff_args["upper_bound_diffusion"] + [0]
+            diff_args["is_reward_in_state"] = True
+            fields_to_scale = names_states[:-1] + (names_controls if u_dependent else [])
+
         scaling_factor = np.array([max_fields[f] for f in fields_to_scale])
         # diff_args['feature_density_scaling'] = scaling_factor
         if dataset_config.get("normalize_data", True):
             diff_args['feature_density_scaling'] = jnp.ones(scaling_factor.shape)
-        else:
+        else: # TODO: Old code compatibility, not used anymore
             diff_args['feature_density_scaling'] = scaling_factor
         # diff_args['feature_density_scaling'] = scaling_factor
+        # TODO: Old code compatibility, not used anymore
         if "upper_bound_diffusion_scale" in diff_args:
             max_stds = diff_args.pop("upper_bound_diffusion_scale") * \
                 percentile_states
             # Include the stepsize
             upper_bound_diffusion = max_stds / np.sqrt(time_steps)
             diff_args["upper_bound_diffusion"] = upper_bound_diffusion
-            print ("\nUpper Bound Diffusion : \n", upper_bound_diffusion)            
+            print ("\nUpper Bound Diffusion : \n", upper_bound_diffusion)
 
     # Let's set the names of the states and controls for the model loader
     args_drift = sde_config['drift_term']['args']
@@ -225,7 +240,7 @@ def setup_system_dataset_and_nsde(
     # Let's fill up missing terms
     required_attributes = \
         ["residual_forces_nn", "coriolis_forces_nn", "gravity_forces_nn",
-         "actuator_forces_nn", "mass_matrix_nn"
+         "actuator_forces_nn", "mass_matrix_nn", "reward_nn"
         ]
     for attr in required_attributes:
         if attr not in args_drift:
@@ -255,6 +270,7 @@ def setup_system_dataset_and_nsde(
         'names_controls': sde_model.names_controls,
         'names_positions': env_infos['names_positions'],
     }
+    # exit()
     return sde_model, sde_params, train_data, test_data
 
 def fill_gaps_in_config(

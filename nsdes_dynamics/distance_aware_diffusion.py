@@ -29,6 +29,7 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
     default_feature_values: List[float]
     feature_density_scaling: jnp.ndarray
     ignore_heterogeneous_noise: bool = False
+    is_reward_in_state: bool = False
 
     def setup(self):
         """ Initialize the learnable parameters of the model.
@@ -229,7 +230,8 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
         time_dependent_parameters: Dict[str, Any],
         diffusion_is_control_dependent: bool,
         feat_params_to_use: List[str],
-        default_values: List[float]
+        default_values: List[float],
+        is_reward_in_state: bool = False,
     ) -> jnp.ndarray:
         """
         Extract the features to be used as input to the density neural network.
@@ -259,6 +261,8 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
                 of parameters
         """
         feature_density = state
+        if is_reward_in_state:
+            feature_density = state[...,:-1]
 
         # Check if the diffusion term is control dependent
         if diffusion_is_control_dependent:
@@ -307,6 +311,7 @@ class BasicDistanceAwareDiffusionTerm(DiffusionTerm):
             self.diffusion_is_control_dependent,
             self.feature_parameters_to_use,
             self.default_feature_values,
+            is_reward_in_state=self.is_reward_in_state
         )
         # Scale the features according to fixed values in the model parameters
         feature_density = feature_density / self.feature_density_scaling
