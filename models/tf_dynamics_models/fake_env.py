@@ -688,7 +688,7 @@ class FakeEnv_SDE_Trunc:
         print("Initializing the uncertainty computation")
         print("################################################\n")
         horizon = 1 # self.model['rollout_length']
-        sampler_fn, _ = load_system_sampler_from_model_name(
+        sampler_fn, sde_model = load_system_sampler_from_model_name(
             self.env_name,
             model_name = self.model['model_name'],
             stepsize = self.model['stepsize'],
@@ -699,6 +699,7 @@ class FakeEnv_SDE_Trunc:
             verbose=False,
             return_sde_model= True
         )
+        is_reward_included = sde_model.drift_term.has_reward
 
         def _uncertainty_est_fn(
             x : jax.numpy.ndarray,
@@ -706,6 +707,10 @@ class FakeEnv_SDE_Trunc:
             rng : jax.random.PRNGKey
         ):
             assert len(x.shape) == len(u.shape) == 2
+
+            if is_reward_included:
+                zero_last_dim = jax.numpy.zeros((x.shape[0], 1))
+                x = jax.numpy.concatenate((x, zero_last_dim), axis=-1)
 
             # Get matching rng keys
             next_rng, rng = jax.random.split(rng, 2)
@@ -723,6 +728,13 @@ class FakeEnv_SDE_Trunc:
             
             pred_states = pred_states[:, :, 1, :]
             pred_feats["diff_density"] = pred_feats["diff_density"][...,None]
+
+            if is_reward_included:
+                pred_states = pred_states[..., :-1]
+                pred_feats =  jax.tree_map(
+                    lambda z : z[..., :-1] if z.shape[-1] == x.shape[-1] else z,
+                    pred_feats
+                )
 
             diffs = pred_states - jnp.expand_dims(jnp.mean(pred_states, axis=1), axis=1)
             disc = jnp.expand_dims(jnp.linalg.norm(diffs, axis=-1), axis=2)
