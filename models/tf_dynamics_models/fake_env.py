@@ -599,7 +599,7 @@ class FakeEnv_SDE_Trunc:
             mean_next_states = jax.numpy.mean(next_pred_states, axis=1)
             dist_discr = next_pred_states - jax.numpy.expand_dims(mean_next_states, axis=1)
             dist_discr = jax.numpy.linalg.norm(dist_discr, axis=-1)
-            pred_feats["disc"] = jax.numpy.expand_dims(dist_discr, axis=2)
+            pred_feats["disc"] = jax.numpy.expand_dims(jax.numpy.expand_dims(dist_discr, axis=2), axis=2)
 
             # Get the diffusion term
             name_diff = self.model['threshold_decision_var'] # diffusion_value
@@ -738,10 +738,6 @@ class FakeEnv_SDE_Trunc:
 
             diffs = pred_states - jnp.expand_dims(jnp.mean(pred_states, axis=1), axis=1)
             disc = jnp.expand_dims(jnp.linalg.norm(diffs, axis=-1), axis=2)
-            
-            name_diff = self.model['threshold_decision_var'] # diffusion_value
-            if name_diff not in pred_feats:
-                raise KeyError(f"Invalid threshold_decision_var: {name_diff}")
 
             # Get the diffusion term
             pred_feats = {
@@ -750,7 +746,12 @@ class FakeEnv_SDE_Trunc:
                         if k in ["diffusion_value", "dad_free_diff",
                                 "dad_based_diff", "diff_density"]
             }
-            diffusion_value = pred_feats[name_diff]
+            
+            name_diff = self.model['threshold_decision_var'] # diffusion_value
+            if name_diff not in pred_feats and name_diff != "disc":
+                raise KeyError(f"Invalid threshold_decision_var: {name_diff}")
+            
+            diffusion_value = pred_feats[name_diff] if name_diff != "disc" else disc
             penalty = jnp.mean(diffusion_value, axis=1)
 
             result_dict = {
@@ -1108,7 +1109,7 @@ class FakeEnv_SDE_Trunc:
         else:
             predicted_particles, predicted_diffusion, self.next_rng = \
                 self.predict(obs, act, self.next_rng)
-
+            
         if not deterministic:
             #### Choose one particle randomly
             num_particles, batch_size, _ = predicted_particles.shape

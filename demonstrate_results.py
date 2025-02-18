@@ -96,12 +96,14 @@ def parse_progress_file(env_name, filepath, horizon=10, num_epochs=1000, fake_en
         if all_recorded: 
             if horizon > 1:
                 trunc_first_digit_idx = 3 if truncation_splitted[3][-1].isdigit() else 4
+                unc_first_digit_idx = 3 if uncertainty_estimate_splitted[3][-1].isdigit() else 4
+                mean_rew_first_digit_idx = 3 if mean_rewards_splitted[3][-1].isdigit() else 4
             else:
-                trunc_first_digit_idx = 3
+                trunc_first_digit_idx, unc_first_digit_idx, mean_rew_first_digit_idx = 3, 3, 3
             for h in range(horizon):
                 truncation[ep_no,h] = int(parse_str_for_number(truncation_splitted[trunc_first_digit_idx+h]))
-                uncertainty_estimate[ep_no,h] = float(parse_str_for_number(uncertainty_estimate_splitted[3+h]))
-                mean_rewards[ep_no,h] = float(parse_str_for_number(mean_rewards_splitted[3+h]))
+                uncertainty_estimate[ep_no,h] = float(parse_str_for_number(uncertainty_estimate_splitted[unc_first_digit_idx+h]))
+                mean_rewards[ep_no,h] = float(parse_str_for_number(mean_rewards_splitted[mean_rew_first_digit_idx+h]))
 
     return normalized_rewards_mean, normalized_rewards_std, fake_normalized_rewards_mean, fake_normalized_rewards_std, \
           truncation, uncertainty_estimate, mean_rewards
@@ -127,12 +129,15 @@ def plot_results(log_dir, env_name, models, seeds, algo, settings, plot_for_list
     iterations = np.arange(0, num_epochs, dtype=int)
     iterations_step = iterations*steps_per_iter
 
-    if "halfcheetah" in env_name:
-        model_seeds = models[algo]["seeds"]
-        model_config = models[algo]["config"]
-    else:
-        model_seeds = models["seeds"]
-        model_config = models["config"]
+    # if "halfcheetah" in env_name:
+    #     model_seeds = models[algo]["seeds"]
+    #     model_config = models[algo]["config"]
+    # else:
+    #     model_seeds = models["seeds"]
+    #     model_config = models["config"]
+
+    model_seeds = models[algo]["seeds"]
+    model_config = models[algo]["config"]
 
     results = {
         "human_normalized_score": {},
@@ -142,7 +147,13 @@ def plot_results(log_dir, env_name, models, seeds, algo, settings, plot_for_list
         "mean_reward": {},
     }
     for seed in seeds:
-        algo_dir = "tatu_mopo" if algo == "mopo" else algo
+        if algo == "tatu_mopo_sde_rew":
+            algo_dir = "tatu_mopo_sde"
+        elif algo == "mopo":
+            algo_dir = "tatu_mopo"
+        else:
+            algo_dir = algo
+
         filepath = os.path.join(log_dir, env_name, algo_dir, model_seeds[seed]["model"])
         print(model_seeds[seed]["model"])
         normalized_rewards_mean, normalized_rewards_std, fake_normalized_rewards_mean, fake_normalized_rewards_std, \
@@ -221,7 +232,7 @@ def plot_results(log_dir, env_name, models, seeds, algo, settings, plot_for_list
 
 def main():
     log_dir = "/home/ck28372/sde4mbrltatu/log/"
-    # env_name = "walker2d-medium-expert-v2"
+    # env_name = "hopper-random-v2"
     env_name = "Walker2d-v3-Low-1000-neorl"
     seeds = {
         32: "red",
@@ -230,7 +241,8 @@ def main():
         122: "magenta",
         # 152: "cyan",
     }
-    algo = "tatu_mopo_sde" 
+    algo = "tatu_mopo_sde_rew" 
+    # algo = "tatu_mopo_sde" 
     # algo = "tatu_mopo"
     # algo = "mopo"
     
@@ -318,27 +330,54 @@ def main():
         },
         ########### HOPPER NeoRL ############
         "Hopper-v3-Low-1000-neorl": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.99,
-                "RPC": 0.001,
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.99,
+                    "RPC": 0.001,
+                },
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "hop_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0517_020708",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hop_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0517_020723",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hop_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0517_020728",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hop_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0517_131938",
+                    },
+                },
             },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hop_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0517_020708",
+            "tatu_mopo_sde_rew": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.99,
+                    "RPC": 0.001,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hop_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0517_020723",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "hop_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0517_020728",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "hop_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0517_131938",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "hop_l_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0928_231632",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hop_l_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0928_231636",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hop_l_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0928_231640",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hop_l_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0928_231644",
+                    },
                 },
             },
         },
@@ -394,27 +433,54 @@ def main():
         },
         ########### WALKER2D NeoRL ############
         "Walker2d-v3-Low-1000-neorl": {
-            "config": {
-                "RL": 5,
-                "CVaR": 0.99,
-                "RPC": 0.001,
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 5,
+                    "CVaR": 0.99,
+                    "RPC": 0.001,
+                },
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "wk_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0517_015600",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "wk_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0517_015637",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "wk_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0517_015643",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "wk_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0517_015652",
+                    },
+                },
             },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "wk_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0517_015600",
+            "tatu_mopo_sde_rew": {
+                "config": {
+                    "RL": 5,
+                    "CVaR": 0.99,
+                    "RPC": 0.001,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "wk_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0517_015637",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "wk_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0517_015643",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "wk_l_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0517_015652",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "wk_l_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0928_231500",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "wk_l_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0928_231505",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "wk_l_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0928_231515",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "wk_l_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0928_231520",
+                    },
                 },
             },
         },
@@ -497,25 +563,45 @@ def main():
                     #     "label": "seed-152",
                     #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_144145",
                     # },
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171344",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171425",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171432",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171434",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171451",
+                    # },
                     32: {
                         "label": "seed-32",
-                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171344",
+                        "model": "hc_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0922_132212",
                     },
                     62: {
                         "label": "seed-62",
-                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171425",
+                        "model": "hc_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0922_132215",
                     },
                     92: {
                         "label": "seed-92",
-                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171432",
+                        "model": "hc_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0922_132220",
                     },
                     122: {
                         "label": "seed-122",
-                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171434",
+                        "model": "hc_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0922_132222",
                     },
                     152: {
                         "label": "seed-152",
-                        "model": "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171451",
+                        "model": "hc_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0922_132226",
                     },
                 },
             },
@@ -602,25 +688,45 @@ def main():
                 #         "label": "seed-152",
                 #         "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_164905",
                 #     },
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171554",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171608",                    
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171614",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171624",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171628",
+                    # },
                     32: {
                         "label": "seed-32",
-                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171554",
+                        "model": "hc_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0922_132341",
                     },
                     62: {
                         "label": "seed-62",
-                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171608",                    
+                        "model": "hc_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0922_132350",                    
                     },
                     92: {
                         "label": "seed-92",
-                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171614",
+                        "model": "hc_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0922_132422",
                     },
                     122: {
                         "label": "seed-122",
-                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171624",
+                        "model": "hc_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0922_132426",
                     },
                     152: {
                         "label": "seed-152",
-                        "model": "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171628",
+                        "model": "hc_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0922_132429",
                     },
                 },
             },
@@ -707,25 +813,45 @@ def main():
                     #     "label": "seed-152",
                     #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_144747",
                     # },
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171705",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171711",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171724",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171727",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171736",
+                    # },
                     32: {
                         "label": "seed-32",
-                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171705",
+                        "model": "hc_mr_final_rew_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0922_132512",
                     },
                     62: {
                         "label": "seed-62",
-                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171711",
+                        "model": "hc_mr_final_rew_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0922_132522",
                     },
                     92: {
                         "label": "seed-92",
-                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171724",
+                        "model": "hc_mr_final_rew_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0922_132533",
                     },
                     122: {
                         "label": "seed-122",
-                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171727",
+                        "model": "hc_mr_final_rew_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0922_132538",
                     },
                     152: {
                         "label": "seed-152",
-                        "model": "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171736",
+                        "model": "hc_mr_final_rew_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0922_132543",
                     },
                 },
             },
@@ -812,25 +938,45 @@ def main():
                     #     "label": "seed-152",
                     #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_165025",
                     # },
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171831",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171851",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171904",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171909",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171912",
+                    # },
                     32: {
                         "label": "seed-32",
-                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0520_171831",
+                        "model": "hc_me_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0922_132729",
                     },
                     62: {
                         "label": "seed-62",
-                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0520_171851",
+                        "model": "hc_me_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0922_132736",
                     },
                     92: {
                         "label": "seed-92",
-                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0520_171904",
+                        "model": "hc_me_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0922_132742",
                     },
                     122: {
                         "label": "seed-122",
-                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0520_171909",
+                        "model": "hc_me_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0922_132731",
                     },
                     152: {
                         "label": "seed-152",
-                        "model": "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0520_171912",
+                        "model": "hc_me_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0922_132740",
                     },
                 },
             },
@@ -892,235 +1038,394 @@ def main():
         
         ########### HOPPER D4RL ############
         "hopper-random-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 1,
-                "RPC": 0.001,
-            },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0428_152526",
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 1,
+                    "RPC": 0.001,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0429_111226",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0511_152510",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0511_152516",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_223248",
+                "seeds": {
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0428_152526",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0429_111226",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0511_152510",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0511_152516",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hop_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_223248",
+                    # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "hop_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0927_233446",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hop_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0927_233453",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hop_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0927_233500",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hop_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0927_233503",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "hop_rand_final_rew_diff=True_cvar=1.0_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0927_233507",
+                    },
                 },
             },
         },
         "hopper-medium-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.99,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0512_172225",
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.99,
+                    "RPC": 1,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0512_172239",
+                "seeds": {
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0512_172225",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0512_172239",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_224512",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_224528",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_224604",
+                    # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "hop_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0927_233636",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hop_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0927_233710",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hop_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0927_233727",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hop_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0927_233742",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "hop_m_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0927_233747",
+                    },
                 },
-                92: {
-                    "label": "seed-92",
-                    "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_224512",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_224528",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "hop_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_224604",
-                },
-            },
+            },  
         },
         "hopper-medium-replay-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.99,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0511_154029",
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.99,
+                    "RPC": 1,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0511_154035",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0512_182205",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0512_182213",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_224951",
+                "seeds": {
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0511_154029",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0511_154035",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0512_182205",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0512_182213",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "hop_mr_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_224951",
+                    # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "hop_mr_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0927_233819",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hop_mr_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0927_233824",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hop_mr_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0927_233830",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hop_mr_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0927_233827",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "hop_mr_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0927_233832",
+                    },
                 },
             },
         },
         "hopper-medium-expert-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.99,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "hop_me_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0511_155127",
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.99,
+                    "RPC": 1,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "hop_me_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0511_155136",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "hop_me_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0512_182707",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "hop_me_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0512_182708",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "hop_me_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_225328",
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "hop_me_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0926_163459",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "hop_me_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0926_163503",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "hop_me_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0926_163510",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "hop_me_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0926_163513",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "hop_me_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0926_163515",
+                    },
                 },
             },
         },
         ########### WALKER2D D4RL ############
         "walker2d-random-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.99,
-                "RPC": 0.001,
-            },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0510_000247",
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.99,
+                    "RPC": 0.001,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0510_000254",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_222458",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_222518",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_222524",
+                # "seeds": {
+                #     32: {
+                #         "label": "seed-32",
+                #         "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0510_000247",
+                #     },
+                #     62: {
+                #         "label": "seed-62",
+                #         "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0510_000254",
+                #     },
+                #     92: {
+                #         "label": "seed-92",
+                #         "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_222458",
+                #     },
+                #     122: {
+                #         "label": "seed-122",
+                #         "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_222518",
+                #     },
+                #     152: {
+                #         "label": "seed-152",
+                #         "model": "wk_rand_final_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_222524",
+                #     },
+                # },
+                "seeds": {
+                    32: {
+                        "label": "seed-32",
+                        "model": "wk_rand_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0923_133736",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "wk_rand_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0923_133740",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "wk_rand_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0923_133740",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "wk_rand_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0923_133747",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "wk_rand_final_rew_diff=True_cvar=0.99_tdv=diff_density_rl=10_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0923_133753",
+                    },
                 },
             },
         },
         "walker2d-medium-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.98,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0510_151713",
+            "tatu_mopo_sde":{
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.98,
+                    "RPC": 1,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0510_151719",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_222637",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_222652",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_222658",
+                "seeds": {
+                #     32: {
+                #         "label": "seed-32",
+                #         "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0510_151713",
+                #     },
+                #     62: {
+                #         "label": "seed-62",
+                #         "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0510_151719",
+                #     },
+                #     92: {
+                #         "label": "seed-92",
+                #         "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_222637",
+                #     },
+                #     122: {
+                #         "label": "seed-122",
+                #         "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_222652",
+                #     },
+                #     152: {
+                #         "label": "seed-152",
+                #         "model": "wk_m_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_222658",
+                #     },
+                # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "wk_m_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0923_133804",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "wk_m_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0923_133808",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "wk_m_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0923_133812",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "wk_m_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0923_133815",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "wk_m_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0923_133818",
+                    },
                 },
             },
         },
         "walker2d-medium-replay-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.95,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0510_151203",
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.95,
+                    "RPC": 1,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0510_151210",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_222821",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_222828",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_222844",
+                "seeds": {
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0510_151203",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0510_151210",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_222821",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_222828",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "wk_mr_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_222844",
+                    # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "wk_mr_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0923_133246",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "wk_mr_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0923_133217",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "wk_mr_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0923_133236",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "wk_mr_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0923_133252",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "wk_mr_final_rew_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0923_133257",
+                    },
                 },
             },
         },
         "walker2d-medium-expert-v2": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.98,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: {
-                    "label": "seed-32",
-                    "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0510_151619",
+            "tatu_mopo_sde": {
+                "config": {
+                    "RL": 10,
+                    "CVaR": 0.98,
+                    "RPC": 1,
                 },
-                62: {
-                    "label": "seed-62",
-                    "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0510_151625",
-                },
-                92: {
-                    "label": "seed-92",
-                    "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_223003",
-                },
-                122: {
-                    "label": "seed-122",
-                    "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_223007",
-                },
-                152: {
-                    "label": "seed-152",
-                    "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_223025",
+                "seeds": {
+                    # 32: {
+                    #     "label": "seed-32",
+                    #     "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0510_151619",
+                    # },
+                    # 62: {
+                    #     "label": "seed-62",
+                    #     "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0510_151625",
+                    # },
+                    # 92: {
+                    #     "label": "seed-92",
+                    #     "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0514_223003",
+                    # },
+                    # 122: {
+                    #     "label": "seed-122",
+                    #     "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0514_223007",
+                    # },
+                    # 152: {
+                    #     "label": "seed-152",
+                    #     "model": "wk_me_final_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0514_223025",
+                    # },
+                    32: {
+                        "label": "seed-32",
+                        "model": "wk_me_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0923_133432",
+                    },
+                    62: {
+                        "label": "seed-62",
+                        "model": "wk_me_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0923_133439",
+                    },
+                    92: {
+                        "label": "seed-92",
+                        "model": "wk_me_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0923_133647",
+                    },
+                    122: {
+                        "label": "seed-122",
+                        "model": "wk_me_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0923_133443",
+                    },
+                    152: {
+                        "label": "seed-152",
+                        "model": "wk_me_final_rew_diff=True_cvar=0.98_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0923_133446",
+                    },
                 },
             },
         },

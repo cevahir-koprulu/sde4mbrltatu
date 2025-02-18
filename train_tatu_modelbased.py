@@ -77,7 +77,7 @@ def get_args():
 
     # SDE arguments
     parser.add_argument(
-        "--use_diffusion", default=False,
+        "--use_diffusion", default=True,
         action='store_true', help="To penalize uncertainty"
     )
     parser.add_argument("--sde_model_id", type=int, default=0)
@@ -88,9 +88,10 @@ def get_args():
     parser.add_argument("--prob_init_obs", type=float, default=0)
     parser.add_argument("--batch_size_trunc_thresh", type=int, default=100)
     parser.add_argument("--num_particles_trunc_thresh", type=int, default=5)
-    parser.add_argument("--unc_cvar_coef", type=float, default=0.95)
+    parser.add_argument("--unc_cvar_coef", type=float, default=1.0)
     parser.add_argument("--threshold_decision_var", type=str, default='diff_density', 
-                        choices=['dad_based_diff', 'dad_free_diff', 'diff_density', 'diffusion_value', 'disc'])
+                        choices=['dad_based_diff', 'dad_free_diff', 
+                        'diff_density', 'diffusion_value', 'disc'])
     parser.add_argument("--model", type=str, default="")
 
     args= parser.parse_args()

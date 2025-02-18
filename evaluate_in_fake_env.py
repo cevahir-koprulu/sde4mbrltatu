@@ -30,182 +30,9 @@ from nsdes_dynamics.utils_for_d4rl_mujoco import (
     load_neorl_dataset
 )
 
-info_dict = {
-    "halfcheetah-random-v2": {
-        "tatu_mopo_sde": {  
-            "config": {
-                "RL": 20,
-                "CVaR": 1,
-                "RPC": 0.001,
-            },
-            "seeds": {
-                32: "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_143848",
-                62: "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_144109",
-                92: "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_144113",
-                122: "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_144132",
-                152: "hc_rand_final_diff=True_cvar=1.0_tdv=diff_density_rl=20_rpc=0.001_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_144145",
-            },
-        },
-        "tatu_mopo":{
-            "config": {
-                "RL": 5,
-                "PC": 2,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "critic_num_2_seed_32_0518_155708-halfcheetah_random_v2_tatu_mopo",
-                62: "critic_num_2_seed_62_0518_155712-halfcheetah_random_v2_tatu_mopo",
-                92: "critic_num_2_seed_92_0518_155715-halfcheetah_random_v2_tatu_mopo",
-                122: "critic_num_2_seed_122_0518_155716-halfcheetah_random_v2_tatu_mopo",
-                152: "critic_num_2_seed_152_0518_155719-halfcheetah_random_v2_tatu_mopo",
-            },
-        },
-        "mopo":{
-            "config": {
-                "RL": 5,
-                "RPC": 0.5,
-            },
-            "seeds": {
-                32: "critic_num_2_seed_32_0519_152820_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
-                62: "critic_num_2_seed_62_0519_152840_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
-                92: "critic_num_2_seed_92_0519_152843_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
-                122: "critic_num_2_seed_122_0519_152858_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
-                152: "critic_num_2_seed_152_0519_152907_pc=1e-06-halfcheetah_random_v2_tatu_mopo",
-            },
-        },
-    },
-    "halfcheetah-medium-v2": {
-        "tatu_mopo_sde": {
-            "config": {
-                "RL": 5,
-                "CVaR": 0.99,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_164842",
-                62: "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_164851",
-                92: "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_164857",
-                122: "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_164902",
-                152: "hc_m_final_diff=True_cvar=0.99_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_164905",
-            },
-        },
-        "tatu_mopo":{
-            "config": {
-                "RL": 5,
-                "PC": 2,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "critic_num_2_seed_32_0518_155450-halfcheetah_medium_v2_tatu_mopo",
-                62: "critic_num_2_seed_62_0518_155501-halfcheetah_medium_v2_tatu_mopo",
-                92: "critic_num_2_seed_92_0518_155509-halfcheetah_medium_v2_tatu_mopo",
-                122: "critic_num_2_seed_122_0518_155514-halfcheetah_medium_v2_tatu_mopo",
-                152: "critic_num_2_seed_152_0518_155524-halfcheetah_medium_v2_tatu_mopo",
-            },
-        },
-        "mopo":{
-            "config": {
-                "RL": 1,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "critic_num_2_seed_32_0519_153029_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
-                62: "critic_num_2_seed_62_0519_153032_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
-                92: "critic_num_2_seed_92_0519_153040_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
-                122: "critic_num_2_seed_122_0519_153053_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
-                152: "critic_num_2_seed_152_0519_153056_pc=1e-06-halfcheetah_medium_v2_tatu_mopo",
-            },
-        },
-    },
-    "halfcheetah-medium-replay-v2": {
-        "tatu_mopo_sde": {
-            "config": {
-                "RL": 5,
-                "CVaR": 0.9,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_144719",
-                62: "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_144725",
-                92: "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_144738",
-                122: "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_144741",
-                152: "hc_mr_final_diff=True_cvar=0.9_tdv=diff_density_rl=5_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_144747",
+from tqdm import tqdm
 
-            },
-        },
-        "tatu_mopo":{
-            "config": {
-                "RL": 5,
-                "PC": 2,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "critic_num_2_seed_32_0518_155620-halfcheetah_medium_replay_v2_tatu_mopo",
-                62:  "critic_num_2_seed_62_0518_155545-halfcheetah_medium_replay_v2_tatu_mopo",
-                92: "critic_num_2_seed_92_0518_155548-halfcheetah_medium_replay_v2_tatu_mopo",
-                122: "critic_num_2_seed_122_0518_155550-halfcheetah_medium_replay_v2_tatu_mopo",
-                152: "critic_num_2_seed_152_0518_155555-halfcheetah_medium_replay_v2_tatu_mopo",
-            },
-        },
-        "mopo":{
-            "config": {
-                "RL": 5,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "critic_num_2_seed_32_0519_153143_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
-                62: "critic_num_2_seed_62_0519_153149_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
-                92: "critic_num_2_seed_92_0519_153212_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
-                122: "critic_num_2_seed_122_0519_153216_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
-                152:  "critic_num_2_seed_152_0519_153224_pc=1e-06-halfcheetah_medium_replay_v2_tatu_mopo",
-            },
-        },
-    },
-    "halfcheetah-medium-expert-v2": {
-        "tatu_mopo_sde": {
-            "config": {
-                "RL": 10,
-                "CVaR": 0.95,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=32_0515_165012",
-                62: "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=62_0515_165021",
-                92: "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=92_0515_165023",
-                122: "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=122_0515_165023",
-                152: "hc_me_final_diff=True_cvar=0.95_tdv=diff_density_rl=10_rpc=1.0_rr=0.05_ep=1000_rfq=1000_spe=1000_alr=0.0003_clr=0.0003_seed=152_0515_165025",
-            },
-        },
-        "tatu_mopo":{
-            "config": {
-                "RL": 5,
-                "PC": 2,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "critic_num_2_seed_32_0518_155659-halfcheetah_medium_expert_v2_tatu_mopo",
-                62: "critic_num_2_seed_62_0518_155702-halfcheetah_medium_expert_v2_tatu_mopo",
-                92: "critic_num_2_seed_92_0518_155703-halfcheetah_medium_expert_v2_tatu_mopo",
-                122: "critic_num_2_seed_122_0518_155708-halfcheetah_medium_expert_v2_tatu_mopo",
-                152: "critic_num_2_seed_152_0518_155712-halfcheetah_medium_expert_v2_tatu_mopo",
-            },
-        },
-        "mopo":{
-            "config": {
-                "RL": 5,
-                "RPC": 1,
-            },
-            "seeds": {
-                32: "critic_num_2_seed_32_0519_153307_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
-                62: "critic_num_2_seed_62_0519_153330_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
-                92: "critic_num_2_seed_92_0519_153335_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
-                122: "critic_num_2_seed_122_0519_153339_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
-                152: "critic_num_2_seed_152_0519_153343_pc=1e-06-halfcheetah_medium_expert_v2_tatu_mopo",
-            },
-        },
-    },
-    }
-
+from training_info_dict import TRAINING_INFO_DICT as info_dict
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -252,10 +79,10 @@ def get_args():
     parser.add_argument("--eval_fake_env", default=False, action='store_true')
 
     # SDE arguments
-    # parser.add_argument(
-    #     "--use_diffusion", default=False,
-    #     action='store_true', help="To penalize uncertainty"
-    # )
+    parser.add_argument(
+        "--use_diffusion", default=True,
+        action='store_true', help="To penalize uncertainty"
+    )
     parser.add_argument("--sde_model_id", type=int, default=0)
     parser.add_argument("--cpkt_step", type=int, default=-2)
     parser.add_argument("--sde_num_particles", type=int, default=5)
@@ -268,6 +95,8 @@ def get_args():
     parser.add_argument("--threshold_decision_var", type=str, default='diff_density', 
                         choices=['dad_based_diff', 'dad_free_diff', 'diff_density', 'diffusion_value', 'disc'])
     parser.add_argument("--model", type=str, default="")
+
+    parser.add_argument("--eval_full_episode", default=False, action='store_true')
 
     args= parser.parse_args()
     
@@ -340,7 +169,10 @@ def get_args():
     }
 
     info = info_dict[args.task][args.algo_name]
-    args.algo_name = "tatu_mopo" if "mopo" == args.algo_name else args.algo_name
+    if "mopo" == args.algo_name:
+        args.algo_name = "tatu_mopo"
+    elif "tatu_mopo_sde_rew" == args.algo_name:
+        args.algo_name = "tatu_mopo_sde"
     args.load_dir = info["seeds"][args.seed]
     args.rollout_length = info["config"]["RL"]
     args.unc_cvar_coef = info["config"].get("CVaR", 1)
@@ -404,6 +236,59 @@ def fake_evaluate(obs_inits, algo):
         "eval/episode_uncertainty": [ep_info["episode_uncertainty"] for ep_info in eval_ep_info_buffer],
         "eval/episode_unpenalized_reward": [ep_info["episode_unpenalized_reward"] for ep_info in eval_ep_info_buffer],
     }
+
+def fake_evaluate_rollout(obs_inits, algo):
+    algo.policy.eval()
+    batch_size = 10000
+    eval_res_dict = {
+        "eval/episode_reward": None,
+        "eval/episode_length": None,
+        "eval/episode_uncertainty": None,
+        "eval/episode_unpenalized_reward": None,
+    }
+    rng = None
+    for obs_idx in tqdm(range(0, len(obs_inits), batch_size), desc="Batch"):
+        obs = np.array(obs_inits[obs_idx:obs_idx+batch_size])
+        episode_reward, episode_length = np.zeros(obs.shape[0]), np.ones(obs.shape[0])
+        episode_uncertainty = np.zeros(obs.shape[0])
+        episode_unpenalized_reward = np.zeros(obs.shape[0])
+        for _iter_num in range(algo._rollout_length):
+            try:
+                action = algo.policy.sample_action(obs, deterministic=True)
+            except:
+                pass
+            action = np.array(action)
+            next_obs, reward, terminal, infos = algo.fake_env.step_eval(
+                obs, action, rng=rng
+            )
+            rng = infos['next_rng']
+            episode_reward += reward
+            # print(f"i={_iter_num}, num_terminals={np.sum(terminal==1)}")
+            episode_uncertainty += infos['uncertainty']
+            episode_unpenalized_reward += infos['unpenalized_reward']
+            obs = next_obs
+            if _iter_num == algo._rollout_length-1:
+                if eval_res_dict["eval/episode_reward"] is None:
+                    eval_res_dict["eval/episode_reward"] = episode_reward/episode_length
+                    eval_res_dict["eval/episode_length"] = episode_length
+                    eval_res_dict["eval/episode_uncertainty"] = episode_uncertainty/episode_length
+                    eval_res_dict["eval/episode_unpenalized_reward"] = episode_unpenalized_reward/episode_length
+                else:
+                    eval_res_dict["eval/episode_reward"] = np.concatenate(
+                        [eval_res_dict["eval/episode_reward"], episode_reward/episode_length]
+                    )
+                    eval_res_dict["eval/episode_length"] = np.concatenate(
+                        [eval_res_dict["eval/episode_length"], episode_length]
+                    )
+                    eval_res_dict["eval/episode_uncertainty"] = np.concatenate(
+                        [eval_res_dict["eval/episode_uncertainty"], episode_uncertainty/episode_length]
+                    )
+                    eval_res_dict["eval/episode_unpenalized_reward"] = np.concatenate(
+                        [eval_res_dict["eval/episode_unpenalized_reward"], episode_unpenalized_reward/episode_length]
+                    )
+                break
+            episode_length += (~terminal[:,0])*1
+    return eval_res_dict
         
 def main(args):
     # Set numpy print options
@@ -496,7 +381,7 @@ def main(args):
             load_dir=model_dir,
             name="BNN_0",
         )
-    elif args.algo == "tatu_mopo_sde":
+    elif args.algo_name == "tatu_mopo_sde":
         dynamics_model = {
             'model_name': args.sde_model_name,
             'use_gpu': args.use_gpu,
@@ -565,29 +450,50 @@ def main(args):
         unc_cvar_coef=args.unc_cvar_coef,
     )
 
-    obs_inits = np.array([env.reset() for i in range(args.eval_episodes)])
+    if args.eval_full_episode:
+        obs_inits = np.array([env.reset() for i in range(args.eval_episodes)])
+        fake_eval_info = fake_evaluate(obs_inits, algo)
+        # Penalized rewards
+        fake_best_eval_mean_normal = env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_reward"]))*100
+        fake_std_best_mean_normal = env.get_normalized_score(
+            np.mean(fake_eval_info[f"eval/episode_reward"])+np.std(fake_eval_info[f"eval/episode_reward"]))*100 - fake_best_eval_mean_normal
+        # Uncertainty
+        fake_best_eval_mean_normal_unc = env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_uncertainty"]))*100
+        fake_std_best_mean_normal_unc = env.get_normalized_score(
+            np.mean(fake_eval_info[f"eval/episode_uncertainty"])+np.std(fake_eval_info[f"eval/episode_uncertainty"]))*100 - fake_best_eval_mean_normal_unc
+        # Unpenalized rewards
+        fake_best_eval_mean_normal_unpen = env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_unpenalized_reward"]))*100
+        fake_std_best_mean_normal_unpen = env.get_normalized_score(
+            np.mean(fake_eval_info[f"eval/episode_unpenalized_reward"])+np.std(fake_eval_info[f"eval/episode_unpenalized_reward"]))*100 - fake_best_eval_mean_normal_unpen
+        
+        
+        filename = os.path.join(load_dir, f"fake_eval_full={args.eval_full_episode}.txt")
+        with open(filename, 'w') as f:
+            print(f"task: {args.task}, algo: {args.algo_name}, seed: {args.seed}")
+            print(f"fake_best_eval_mean_normal: {fake_best_eval_mean_normal:.3f} ± {fake_std_best_mean_normal:.3f}", file=f)
+            print(f"fake_best_eval_mean_normal_unc: {fake_best_eval_mean_normal_unc:.3f} ± {fake_std_best_mean_normal_unc:.3f}", file=f)
+            print(f"fake_best_eval_mean_normal_unpen: {fake_best_eval_mean_normal_unpen:.3f} ± {fake_std_best_mean_normal_unpen:.3f}", file=f)
+    else:
+        obs_inits = dataset["observations"]
+        fake_eval_info = fake_evaluate_rollout(obs_inits, algo)
 
-    fake_eval_info = fake_evaluate(obs_inits, algo)
-    # Penalized rewards
-    fake_best_eval_mean_normal = env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_reward"]))*100
-    fake_std_best_mean_normal = env.get_normalized_score(
-        np.mean(fake_eval_info[f"eval/episode_reward"])+np.std(fake_eval_info[f"eval/episode_reward"]))*100 - fake_best_eval_mean_normal
-    # Uncertainty
-    fake_best_eval_mean_normal_unc = env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_uncertainty"]))*100
-    fake_std_best_mean_normal_unc = env.get_normalized_score(
-        np.mean(fake_eval_info[f"eval/episode_uncertainty"])+np.std(fake_eval_info[f"eval/episode_uncertainty"]))*100 - fake_best_eval_mean_normal_unc
-    # Unpenalized rewards
-    fake_best_eval_mean_normal_unpen = env.get_normalized_score(np.mean(fake_eval_info[f"eval/episode_unpenalized_reward"]))*100
-    fake_std_best_mean_normal_unpen = env.get_normalized_score(
-        np.mean(fake_eval_info[f"eval/episode_unpenalized_reward"])+np.std(fake_eval_info[f"eval/episode_unpenalized_reward"]))*100 - fake_best_eval_mean_normal_unpen
-    
-    
-    filename = os.path.join(load_dir, "fake_eval.txt")
-    with open(filename, 'w') as f:
-        print(f"task: {args.task}, algo: {args.algo_name}, seed: {args.seed}")
-        print(f"fake_best_eval_mean_normal: {fake_best_eval_mean_normal:.1f} ± {fake_std_best_mean_normal:.1f}", file=f)
-        print(f"fake_best_eval_mean_normal_unc: {fake_best_eval_mean_normal_unc:.1f} ± {fake_std_best_mean_normal_unc:.1f}", file=f)
-        print(f"fake_best_eval_mean_normal_unpen: {fake_best_eval_mean_normal_unpen:.1f} ± {fake_std_best_mean_normal_unpen:.1f}", file=f)
+        # Penalized rewards
+        fake_best_eval_mean = np.mean(fake_eval_info[f"eval/episode_reward"])
+        fake_std_best_mean = np.mean(fake_eval_info[f"eval/episode_reward"])+np.std(fake_eval_info[f"eval/episode_reward"]) - fake_best_eval_mean
+        # Uncertainty
+        fake_best_eval_mean_unc = np.mean(fake_eval_info[f"eval/episode_uncertainty"])
+        fake_std_best_mean_unc = np.mean(fake_eval_info[f"eval/episode_uncertainty"])+np.std(fake_eval_info[f"eval/episode_uncertainty"]) - fake_best_eval_mean_unc
+        # Unpenalized rewards
+        fake_best_eval_mean_unpen = np.mean(fake_eval_info[f"eval/episode_unpenalized_reward"])
+        fake_std_best_mean_unpen = np.mean(fake_eval_info[f"eval/episode_unpenalized_reward"])+np.std(fake_eval_info[f"eval/episode_unpenalized_reward"]) - fake_best_eval_mean_unpen
+        
+        filename = os.path.join(load_dir, f"fake_eval_full={args.eval_full_episode}.txt")
+        with open(filename, 'w') as f:
+            print(f"task: {args.task}, algo: {args.algo_name}, seed: {args.seed}")
+            print(f"fake_best_eval_mean: {fake_best_eval_mean:.3f} ± {fake_std_best_mean:.3f}", file=f)
+            print(f"fake_best_eval_mean_unc: {fake_best_eval_mean_unc:.3f} ± {fake_std_best_mean_unc:.3f}", file=f)
+            print(f"fake_best_eval_mean_unpen: {fake_best_eval_mean_unpen:.3f} ± {fake_std_best_mean_unpen:.3f}", file=f)
+
 
 if __name__ == "__main__":
     main(get_args())
