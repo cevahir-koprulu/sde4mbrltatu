@@ -1,6 +1,7 @@
 models/sde_models/
 nsdes_dynamics/training_datasets/
 log**/
+misc*/
 __pycache__/
 
 **/__pycache__
